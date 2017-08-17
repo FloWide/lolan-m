@@ -8,13 +8,18 @@
 #include "lolan.h"
 #include "cn-cbor.h"
 
+#include <stdint.h>
+
 #ifdef PLATFORM_EFM32
-	#include "em_aes.h"
+#include "em_aes.h"
 #else
-	#include "aes.h"
+#include "aes.h"
 #endif
 
-static uint8_t nodeIV[] = 	 	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,	0x00,
+uint16_t CRC_calc(uint8_t *start, uint8_t size);
+void AES_CTRUpdate8Bit(uint8_t *ctr);
+
+static uint8_t nodeIV[] = 	 	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 					   	  0x82, 0x38, 0xF7, 0xE1, 0xA5, 0x3C, 0x4E, 0xC9}; // this part is random, and public known
 
 static uint8_t networkKey[] =	{ 0xF2, 0x66, 0x37, 0x69, 0x01, 0x3E, 0x43, 0x62,
@@ -251,10 +256,3 @@ int8_t lolan_parsePacket(uint8_t *rxp, lolan_Packet *lp)
 
 	return 1; // successful parsing
 }
-
-
-
-
-
-
-

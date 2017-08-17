@@ -10,6 +10,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 /*
 unsigned char*  text;                pointer to data stream

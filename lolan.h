@@ -11,11 +11,9 @@
 #include "em_device.h"
 #endif
 
-#include "hmac.h"
-#include "md5.h"
-
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 #ifndef LOLAN_H_
 #define LOLAN_H_
@@ -54,7 +52,7 @@ typedef enum {
 typedef struct {
 	lolan_PacketType packetType;
 	lolan_PacketSize packetSize;
-	bool encrypted;
+	uint8_t encrypted;
 	uint16_t fromId;
 	uint16_t toId;
 	uint32_t timeStamp;
@@ -71,8 +69,6 @@ typedef struct {
 	void *data;
 } lolan_RegMap;
 
-uint16_t CRC_calc(uint8_t *start, uint8_t size);
-void AES_CTRUpdate8Bit(uint8_t *ctr);
 
 int8_t lolan_parsePacket(uint8_t *rxp, lolan_Packet *lp);
 void lolan_init(uint16_t lolan_address);
