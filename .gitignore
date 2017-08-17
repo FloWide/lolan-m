@@ -1,1 +1,3 @@
+*.o
+*.a
 lolan_config.h
