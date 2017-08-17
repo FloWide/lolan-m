@@ -8,6 +8,12 @@
 #include "lolan.h"
 #include "cn-cbor.h"
 
+#ifdef PLATFORM_EFM32
+	#include "em_aes.h"
+#else
+	#include "aes.h"
+#endif
+
 static uint8_t nodeIV[] = 	 	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,	0x00,
 					   	  0x82, 0x38, 0xF7, 0xE1, 0xA5, 0x3C, 0x4E, 0xC9}; // this part is random, and public known
 
@@ -181,7 +187,13 @@ int8_t lolan_parsePacket(uint8_t *rxp, lolan_Packet *lp)
 
 		AES_CTR_Setup(aes_cntr,nodeIV,lp->fromId,lp->timeStamp,lp->extTimeStamp);
 
+#ifdef PLATFORM_EFM32
 		AES_CTR128(lp->payloadBuff,&(rxp[11]),16,networkKey,aes_cntr,&AES_CTRUpdate8Bit);
+#else
+		aes_ctr_encrypt(networkKey, 16,&(rxp[11]), 16, aes_cntr);
+		memcpy(lp->payloadBuff,&(rxp[11]),16);
+#endif
+
 	} else {
 		memcpy(lp->payloadBuff,&(rxp[6]),16);
 		uint16_t crc16 = CRC_calc(rxp,24);

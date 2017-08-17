@@ -5,8 +5,9 @@
  *      Author: gabor
  */
 
-#include "em_aes.h"
 #include "em_device.h"
+
+#include "lolan_config.h"
 
 #include "hmac.h"
 #include "md5.h"
