@@ -5,9 +5,11 @@
  *      Author: gabor
  */
 
-#include "em_device.h"
-
 #include "lolan_config.h"
+
+#ifdef PLATFORM_EMF32
+#include "em_device.h"
+#endif
 
 #include "hmac.h"
 #include "md5.h"
