@@ -68,12 +68,15 @@
 #define IB_FLOAT4 (IB_PRIM | AI_4)
 #define IB_FLOAT8 (IB_PRIM | AI_8)
 
+#ifdef PLATFORM_EFM32
 // For a lil-endian machine
 #define htonl(v)                ((uint32_t)(__REV(v)))
 #define htons(v)                ((uint16_t)(__REV16(v)))
 #define ntohl(v)                ((uint32_t)(__REV(v)))
 #define ntohs(v) ((uint16_t)((__REV16(v))))
-
+#else
+#include <netinet/in.h>
+#endif
 
 // These definitions are here because they aren't required for the public
 // interface, and they were quite confusing in cn-cbor.h

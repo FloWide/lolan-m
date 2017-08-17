@@ -15,6 +15,7 @@
  */
 
 #include "aes_i.h"
+#include <string.h>
 
 static void rijndaelEncrypt(const u32 rk[], int Nr, const u8 pt[16], u8 ct[16])
 {

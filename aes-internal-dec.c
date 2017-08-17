@@ -15,6 +15,7 @@
  */
 
 #include "aes_i.h"
+#include <string.h>
 
 /**
  * Expand the cipher key into the decryption key schedule.
@@ -56,12 +57,12 @@ void * aes_decrypt_init(const u8 *key, size_t len)
 {
 	u32 *rk;
 	int res;
-	rk = os_malloc(AES_PRIV_SIZE);
+	rk = malloc(AES_PRIV_SIZE);
 	if (rk == NULL)
 		return NULL;
 	res = rijndaelKeySetupDec(rk, key, len * 8);
 	if (res < 0) {
-		os_free(rk);
+		free(rk);
 		return NULL;
 	}
 	rk[AES_PRIV_NR_POS] = res;
@@ -154,6 +155,6 @@ int aes_decrypt(void *ctx, const u8 *crypt, u8 *plain)
 
 void aes_decrypt_deinit(void *ctx)
 {
-	os_memset(ctx, 0, AES_PRIV_SIZE);
-	os_free(ctx);
+	memset(ctx, 0, AES_PRIV_SIZE);
+	free(ctx);
 }

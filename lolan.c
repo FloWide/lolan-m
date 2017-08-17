@@ -5,6 +5,8 @@
  *      Author: gabor
  */
 
+
+#include "lolan_config.h"
 #include "lolan.h"
 #include "cn-cbor.h"
 
@@ -14,7 +16,10 @@
 #include "em_aes.h"
 #else
 #include "aes.h"
+#include "aes_wrap.h"
 #endif
+
+#include "hmac.h"
 
 uint16_t CRC_calc(uint8_t *start, uint8_t size);
 void AES_CTRUpdate8Bit(uint8_t *ctr);
@@ -25,63 +30,41 @@ static uint8_t nodeIV[] = 	 	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 static uint8_t networkKey[] =	{ 0xF2, 0x66, 0x37, 0x69, 0x01, 0x3E, 0x43, 0x62,
 						  0xBE, 0x16, 0x24, 0xE4, 0xFF, 0xC0, 0x64, 0xC6};
 
-#define LOLAN_REGMAP_SIZE	20		// the maximum number of registers to be mapped. This will result in LOLAN_REG_MAP_SIZE*8 byte data reserved
-
-
-#define LOLAN_INT8			1
-#define LOLAN_INT16			2
-#define LOLAN_INT32			3
-#define LOLAN_STR			4
-#define LOLAN_FLOAT			5
-
-#define LOLAN_REGMAP_TYPE_MASK				0x1F
-
-#define LOLAN_REGMAP_UPDATE_BIT				0x80
-#define LOLAN_REGMAP_TRAP_REQUEST_BIT		0x40
-#define LOLAN_REGMAP_GET_REQUEST_BIT		0x20
-
-static lolan_RegMap regMap[LOLAN_REGMAP_SIZE];
-
-uint16_t (*lolan_replyDeviceCallbackFunc)(uint8_t *buf,uint8_t size);
-
-static uint16_t myAddress;
-
-
-int8_t lolan_regVar(uint8_t p0,uint8_t p1,uint8_t p2,lolan_PacketType pType, void *ptr)
+int8_t lolan_regVar(lolan_ctx *ctx,uint8_t p0,uint8_t p1,uint8_t p2,lolan_PacketType pType, void *ptr)
 {
 	// TODO: only one p0/p1/p2 var can be in the map. Check for this also
 	for (int i=0; i<LOLAN_REGMAP_SIZE;i++) {
-		if (regMap[i].p[0] == 0) {
-			regMap[i].p[0] = p0;
-			regMap[i].p[1] = p1;
-			regMap[i].p[2] = p2;
-			regMap[i].flags = pType;
-			regMap[i].data = ptr;
+		if (ctx->regMap[i].p[0] == 0) {
+			ctx->regMap[i].p[0] = p0;
+			ctx->regMap[i].p[1] = p1;
+			ctx->regMap[i].p[2] = p2;
+			ctx->regMap[i].flags = pType;
+			ctx->regMap[i].data = ptr;
 			return 1;
 		}
 	}
 	return -1;
 }
 
-int8_t lolan_rmVar(uint8_t p0,uint8_t p1,uint8_t p2,lolan_PacketType pType, void *ptr)
+int8_t lolan_rmVar(lolan_ctx *ctx,uint8_t p0,uint8_t p1,uint8_t p2,lolan_PacketType pType, void *ptr)
 {
 	for (int i=0; i<LOLAN_REGMAP_SIZE;i++) {
-		if ((regMap[i].p[0] == p0) && (regMap[i].p[1] == p1) && (regMap[i].p[2] == p2)) {
-			regMap[i].p[0] = 0;
-			regMap[i].p[1] = 0;
-			regMap[i].p[2] = 0;
-			regMap[i].flags = 0;
+		if ((ctx->regMap[i].p[0] == p0) && (ctx->regMap[i].p[1] == p1) && (ctx->regMap[i].p[2] == p2)) {
+			ctx->regMap[i].p[0] = 0;
+			ctx->regMap[i].p[1] = 0;
+			ctx->regMap[i].p[2] = 0;
+			ctx->regMap[i].flags = 0;
 		}
 	}
 	return -1;
 }
 
-int8_t lolan_updateVar(void *ptr)
+int8_t lolan_updateVar(lolan_ctx *ctx,void *ptr)
 {
 	for (int i=0; i<LOLAN_REGMAP_SIZE;i++) {
-		if (regMap[i].p[0] != 0) {
-			if (regMap[i].data == ptr) {
-				regMap[i].flags |= LOLAN_REGMAP_UPDATE_BIT;
+		if (ctx->regMap[i].p[0] != 0) {
+			if (ctx->regMap[i].data == ptr) {
+				ctx->regMap[i].flags |= LOLAN_REGMAP_UPDATE_BIT;
 			}
 			return 1;
 		}
@@ -89,15 +72,17 @@ int8_t lolan_updateVar(void *ptr)
 	return -1;
 }
 
-void lolan_init(uint16_t lolan_address)
+void lolan_init(lolan_ctx *ctx,uint16_t lolan_address)
 {
-	lolan_replyDeviceCallbackFunc = NULL;
-	myAddress = lolan_address;
+	ctx->replyDeviceCallbackFunc = NULL;
+	ctx->myAddress = lolan_address;
+	memcpy(ctx->networkKey,networkKey,16);
+	memcpy(ctx->nodeIV,nodeIV,16);
 }
 
-void lolan_setReplyDeviceCallback(uint16_t (*callback)(uint8_t *buf,uint8_t size))
+void lolan_setReplyDeviceCallback(lolan_ctx *ctx,uint16_t (*callback)(uint8_t *buf,uint8_t size))
 {
-	lolan_replyDeviceCallbackFunc = callback;
+	ctx->replyDeviceCallbackFunc = callback;
 }
 
 uint16_t CRC_calc(uint8_t *start, uint8_t size)
@@ -153,7 +138,7 @@ void AES_CTR_Setup(uint8_t *ctr,uint8_t *iv, uint16_t nodeId, uint32_t systime, 
  *     -2 : auth error / crc error
  *     -3 : process error
  *****************************************************************************/
-int8_t lolan_parsePacket(uint8_t *rxp, lolan_Packet *lp)
+int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, lolan_Packet *lp)
 {
 	if ((rxp[0] & 0x40) != 0) {
 		return -1;
@@ -183,10 +168,13 @@ int8_t lolan_parsePacket(uint8_t *rxp, lolan_Packet *lp)
 		}
 
 		if (x!=0) {
-//				SWOPrintStr("\n lolan_parsePacket(): HMAC verification error!");
-//				SWOPrintStr("\n lolan_parsePacket(): rx_packet: ");SWOPrintHex8(rxp,32);
-//				SWOPrintStr("\n lolan_parsePacket(): rmac: ");SWOPrintHex8(vsp->mac,5);
-//				SWOPrintStr("\n lolan_parsePacket(): cmac: ");SWOPrintHex8(hmac,5);
+			DLOG(("\n lolan_parsePacket(): HMAC verification error!"));
+			DLOG(("\n lolan_parsePacket(): rx_packet: "));
+			for (i=0;i<32;i+=4) {
+				DLOG((" %02x %02x %02x %02x",rxp[i],rxp[i+1],rxp[i+2],rxp[i+3]));
+			}
+			DLOG(("\n lolan_parsePacket(): rmac: %02x %02x %02x %02x %02x",lp->mac[0],lp->mac[1],lp->mac[2],lp->mac[3],lp->mac[4]));
+			DLOG(("\n lolan_parsePacket(): cmac: %02x %02x %02x %02x %02x",hmac[0],hmac[1],hmac[2],hmac[3],hmac[4]));
 			return -2; // hmac verification failed
 		}
 
@@ -202,10 +190,10 @@ int8_t lolan_parsePacket(uint8_t *rxp, lolan_Packet *lp)
 	} else {
 		memcpy(lp->payloadBuff,&(rxp[6]),16);
 		uint16_t crc16 = CRC_calc(rxp,24);
-		//SWOPrintStr("\n CRC16: ");SWOPrintHex8(&crc16,2);
+		DLOG(("\n CRC16: %04x",crc16));
 
 		if (crc16 != 0) {
-			SWOPrintStr("\n lolan_parsePacket(): CRC error\n ");
+			DLOG(("\n lolan_parsePacket(): CRC error\n "));
 			return -2;
 		}
 	}
@@ -213,7 +201,7 @@ int8_t lolan_parsePacket(uint8_t *rxp, lolan_Packet *lp)
 	if ((lp->packetType == LOLAN_GET) || (lp->packetType == LOLAN_SET) || (lp->packetType == LOLAN_TRAP) || (lp->packetType == LOLAN_INFORM)) {
 		if ((lp->payloadBuff[0] & 0x80)!=0) {
 			lp->payloadBuff[0]&=0x7F;
-			SWOPrintStr("\n lolan_parsePacket(): ext payloadSize\n");
+			DLOG(("\n lolan_parsePacket(): ext payloadSize\n"));
 			lp->payloadSize = *((uint16_t *) &(lp->payloadBuff));
 			lp->payload = (uint8_t *) &(lp->payloadBuff[2]);
 		} else {
@@ -223,13 +211,11 @@ int8_t lolan_parsePacket(uint8_t *rxp, lolan_Packet *lp)
 		}
 	}
 
-	SWOPrintStr("\n lolan_parsePacket(): success\n");
-	if (lp->encrypted==1) 	{SWOPrintStr("encrypted: 1\n");}
-	char tmp[30];
-	sprintf(tmp,"t:%d s:%d ps:%d from:%d to:%d",lp->packetType,lp->packetSize,lp->payloadSize,lp->fromId,lp->toId);
-	SWOPrintStr(tmp);
+	DLOG(("\n lolan_parsePacket(): success"));
+	if (lp->encrypted==1) 	{DLOG(("\n encrypted: 1"));}
+	DLOG(("\n LoLaN packet t:%d s:%d ps:%d from:%d to:%d ",lp->packetType,lp->packetSize,lp->payloadSize,lp->fromId,lp->toId));
 
-	if (lp->toId == myAddress) {
+	if (lp->toId == ctx->myAddress) {
 		if (lp->packetType == LOLAN_GET) {
 			cn_cbor *cb;
 			cn_cbor_errback err;

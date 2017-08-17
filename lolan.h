@@ -5,18 +5,25 @@
  *      Author: gabor
  */
 
-#include "lolan_config.h"
-
-#ifdef PLATFORM_EMF32
-#include "em_device.h"
-#endif
-
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
 
 #ifndef LOLAN_H_
 #define LOLAN_H_
+
+#define LOLAN_REGMAP_SIZE	20
+// the maximum number of registers to be mapped. This will result in LOLAN_REG_MAP_SIZE*8 byte data reserved
+
+#define LOLAN_REGMAP_TYPE_MASK				0x1F
+
+#define LOLAN_REGMAP_UPDATE_BIT				0x80
+#define LOLAN_REGMAP_TRAP_REQUEST_BIT		0x40
+#define LOLAN_REGMAP_GET_REQUEST_BIT		0x20
+
+#if defined (__cplusplus)
+extern "C" {
+#endif
 
 typedef enum {
 	LOLAN_INT8=1,
@@ -69,10 +76,20 @@ typedef struct {
 	void *data;
 } lolan_RegMap;
 
+typedef struct {
+	uint16_t myAddress;
+	lolan_RegMap regMap[LOLAN_REGMAP_SIZE];
+	uint16_t (*replyDeviceCallbackFunc)(uint8_t *buf,uint8_t size);
+	uint8_t networkKey[16];
+	uint8_t nodeIV[16];
+} lolan_ctx;
 
-int8_t lolan_parsePacket(uint8_t *rxp, lolan_Packet *lp);
-void lolan_init(uint16_t lolan_address);
-void lolan_setReplyDeviceCallback(uint16_t (*callback)(uint8_t *buf,uint8_t size));
+int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, lolan_Packet *lp);
+void lolan_init(lolan_ctx *ctx,uint16_t lolan_address);
+void lolan_setReplyDeviceCallback(lolan_ctx *ctx,uint16_t (*callback)(uint8_t *buf,uint8_t size));
 
+#if defined (__cplusplus)
+}
+#endif
 
 #endif /* LOLAN_H_ */
