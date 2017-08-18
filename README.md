@@ -1,7 +1,7 @@
 #  Low Latency Network Protocol (LoLaN)
 
 LoLaN is a stateless protocol, designed to communicate over a wireless UWB network with start topology (however other mediums are targeted also). The design goals are to minimize packet header overhead and the redundancy between network layers.
-LoLaN is able to send 16 byte payload within only 24 byte packet without encryption, and in 32 byte packet with encryption and stateless authentication. However also extended packets up to 1326 bytes (suitable for IPv6) are supported with handling fragmentation to 118 bytes (goes over 802.15.4 networks). 
+LoLaN is based on 802.15.4 frame format (however uses the reserved frame version 3, that makes it incopatible with the standard) and relays on packet size information from the PHY layer.
 
 As most of CPU-s implementing LoLaN will be little endian, thus LoLaN itself is little endian. Eg, the first byte of a 16 bit number is the least significant byte.
 
@@ -19,56 +19,44 @@ As most of CPU-s implementing LoLaN will be little endian, thus LoLaN itself is 
   <tr>
     <td>Octet</td>
     <td>Bit</td>
-    <td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td>
-    <td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td>
-    <td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td>
-    <td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td>
+    <td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td>
+    <td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td>
+    <td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td>
+    <td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td>
   </tr>
   <tr>
     <td>0</td>
     <td>0</td>
-    <td>1</td>
-    <td>0</td>
-    <td colspan="6">Attributes</td>
+    <td colspan="16">Attributes</td>
     <td colspan="8">Packet counter (8 bits)</td>
-    <td colspan="16">FromAddress (16 bits)</td>
+    <td colspan="8">FromAddress (lower 8 bits)</td>
   </tr>
   <tr>
     <td>4</td>
     <td>32</td>
+    <td colspan="8">FromAddress (upper 8 bits)</td>
     <td colspan="16">ToAddress (16 bits)</td>
-    <td colspan="16">TimeStamp (0-23 bits)</td>
+    <td colspan="8">TimeStamp (0-8 bits)</td>
   </tr>
   <tr>
     <td>8</td>
     <td>64</td>
-    <td colspan="24">TimeStamp (24-40 bits)</td>
-    <td colspan="8">Payload</td>
+    <td colspan="32">TimeStamp (8-40 bits)</td>
   </tr>
   <tr>
     <td>12</td>
     <td>96</td>
-    <td colspan="32">Payload</td>
+    <td colspan="32">Payload ...</td>
   </tr>
   <tr>
-    <td>16</td>
-    <td>128</td>
-    <td colspan="32">Payload</td>
-  </tr>
-  <tr>
-    <td>20</td>
-    <td>160</td>
-    <td colspan="32">Payload</td>
-  </tr>
-  <tr>
-    <td>24</td>
-    <td>192</td>
-    <td colspan="24">Payload</td>
+    <td>(N-1)*4</td>
+    <td>(N-1)*32</td>
+    <td colspan="8">... Payload</td>
     <td colspan="16">HMAC (0-7) bits</td>
   </tr>
   <tr>
-    <td>28</td>
-    <td>224</td>
+    <td>N*4</td>
+    <td>N*32</td>
     <td colspan="32">HMAC (8-40) bits</td>
   </tr>
 </table>
@@ -88,109 +76,58 @@ As most of CPU-s implementing LoLaN will be little endian, thus LoLaN itself is 
   <tr>
     <td>Octet</td>
     <td>Bit</td>
-    <td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td>
-    <td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td>
-    <td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td>
-    <td>7</td><td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>0</td>
+    <td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td>
+    <td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td>
+    <td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td>
+    <td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td>
   </tr>
   <tr>
     <td>0</td>
     <td>0</td>
-    <td>0</td>
-    <td>0</td>
-    <td colspan="6">Attributes</td>
+    <td colspan="16">Attributes</td>
     <td colspan="8">Packet counter (8 bits)</td>
-    <td colspan="16">FromAddress (16 bits)</td>
+    <td colspan="8">FromAddress (lower 8 bits)</td>
   </tr>
   <tr>
     <td>4</td>
     <td>32</td>
+		<td colspan="8">FromAddress (upper 8 bits)</td>
     <td colspan="16">ToAddress (16 bits)</td>
-    <td colspan="16">Payload</td>
+    <td colspan="8">Payload</td>
   </tr>
   <tr>
     <td>8</td>
     <td>64</td>
-    <td colspan="32">Payload</td>
+    <td colspan="32">Payload ...</td>
   </tr>
   <tr>
-    <td>12</td>
-    <td>96</td>
-    <td colspan="32">Payload</td>
-  </tr>
-  <tr>
-    <td>16</td>
-    <td>128</td>
-    <td colspan="32">Payload</td>
-  </tr>
-  <tr>
-    <td>20</td>
-    <td>160</td>
-    <td colspan="16">Payload</td>
+    <td>N*4</td>
+    <td>N*32</td>
+    <td colspan="16">... Payload</td>
     <td colspan="16">CRC16</td>
   </tr>
 </table>
 
-### Attributes
-#### __bit3-5__: extended packet indicator
+### Attributes (802.15.4 frame control extended)
 
-0: small LoLaN packet (with encryption: 32 bytes (16 byte payload), without encryption: 24 bytes (16 bytes payload))
 
-1: single extended packet = 1 (with encryption: 118 bytes (102 byte payload), without encryption: 110 bytes (102 bytes payload))
+#### __bit0-2__:  Packet type
 
-2: start extended packet with size = 2 (204 bytes payload)
-
-3: start extended packet with size = 3 (306 bytes payload)
-
-4: start extended packet with size = 4 (408 bytes payload)
-
-5: start extended packet with size = 8 (816 bytes payload)
-
-6: start extended packet with size = 13 (1326 bytes payload)
-
-7: extended packet fragment (with encryption: 118 bytes (102 byte payload), without encryption: 110 bytes (102 bytes payload))
-
-#### __bit0-2__: LoLaN data type
-
-LoLaN (TRAP/INFORM/GET/SET)payloads are CBOR (http://cbor.me/) serialized data with the first 1 (or 2 bytes determining the size). 
-If bit 7 of first byte is 1, than the size is extended to a 15 bit size with the following byte.
+LoLaN (TRAP/INFORM/GET/SET)payloads are CBOR (http://cbor.me/) serialized data.
 
 Accessing this data is REST like.
 The key-value pairs can be converted to json with mapping keys, and path numbers to string based on device types.
 0 key value is a special value, that indicates different things based on data type.
 
-##### 0: TRAP
-##### 1: INFORM
-the payload includes characteristic value updates in CBOR format.
-0 key defines the base path as an array for the key-value pairs. If no 0 key is specified, the root node is the base path. More updates can be included in an inform package as a CBOR array.
+##### 0: 802.15.4 BEACON
 
-```language-json
-	{ 0: [2,33,4], 1:"updated value"}
-```
+Not used
 
-This results in updating the /2/33/4/1 value with "updated value" at server side. 
+##### 1: 802.15.4 DATA
 
-The INFROM message is always acknowledged in the current timeslot.
-TRAP is not acknowledged, and not requires to be in a timeslot.
+OTHER protocol data, not LoLaN
 
-##### 2: GET
-
-Payload is the path to be accessed. Path is defined as an array
-
-```language-json
-	[2,33,4,1]
-```
-
-This means GET /2/33/4/1.
-
-The reply should be on air in the same timeslot.
-
-##### 3: SET
-
-0 key indicates the base path for modifing key-value pairs.
-Other keys are the key-value pairs to be modified 
-
-##### 4: ACK
+##### 2: 802.15.4 ACK
 
 IMPORTANT: ACK packet number is the same as the packet ACK-ed.
 
@@ -202,17 +139,72 @@ GET: 0 key indicates result code (integer according to HTTP status codes) other 
 
 SET: 0 key indicates result code (integer according to HTTP status codes), no payload
 
-##### 5: RETRANSMIT REQUEST
+##### 3: 802.15.4 MAC
 
-IMPORTANT: RETRANSMIT REQUEST packet number is an extended packet start packet number
+Not used
 
-the first byte is the number of packets to be retransmitted, and after that the array of packet numbers to be retransmitted
+##### 4: LOLAN INFORM
+the payload includes characteristic value updates in CBOR format.
+0 key defines the base path as an array for the key-value pairs. If no 0 key is specified, the root node is the base path. More updates can be included in an inform package as a CBOR array.
 
-##### 6: CONTROL PACKET
+```language-json
+	{ 0: [2,33,4], 1:"updated value"}
+```
 
-TBD
+This results in updating the /2/33/4/1 value with "updated value" at server side. 
 
-Timesync and other dinamyc LoLaN configurations will be handeled with this
+The INFROM message can be acknowledged in the current timeslot (ACK request bit is set if sent).
 
-##### 7: OTHER PROTOCOL DATA
+##### 5: LOLAN GET
 
+Payload is the path to be accessed. Path is defined as an array
+
+```language-json
+	[2,33,4,1]
+```
+
+This means GET /2/33/4/1.
+
+The reply should be on air in the same timeslot (ACK request bit is always set).
+
+##### 6: LOLAN SET
+
+0 key indicates the base path for modifing key-value pairs.
+Other keys are the key-value pairs to be modified 
+
+ACK request bit is always set.
+
+##### 7: LOLAN CONTROL
+
+TBD.
+
+Like RETRANSMIT REQUEST packet number is an extended packet start packet number
+
+
+#### __bit3__:  Securtiy enbaled
+
+If set, and packet type is LOLAN
+
+#### __bit4__:  Frame pending
+
+The next packet will extend thisone.
+
+#### __bit5__:  ACK request
+
+The recipiend shall send a ACK in the timeslot.
+
+#### __bit6-9__:  Bytes to boundary
+
+If security enabled, these bits inidicate the number of random filled bytes at the end of the packet to meet the security block boundary (15 bytes max)
+
+#### __bit10-11__:  Dest addressing mode
+
+Set to 01 for LoLaN
+
+#### __bit12-13__:  Frame version
+
+Set to 03 for LoLaN
+
+#### __bit14-15__:  Source addressing mode
+
+Set to 01 for LoLaN

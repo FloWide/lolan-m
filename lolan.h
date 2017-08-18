@@ -15,11 +15,13 @@
 #define LOLAN_REGMAP_SIZE	20
 // the maximum number of registers to be mapped. This will result in LOLAN_REG_MAP_SIZE*8 byte data reserved
 
-#define LOLAN_REGMAP_TYPE_MASK				0x1F
+#define LOLAN_REGMAP_TYPE_MASK				0x0F
 
-#define LOLAN_REGMAP_UPDATE_BIT				0x80
+#define LOLAN_REGMAP_LOCAL_UPDATE_BIT		0x80
 #define LOLAN_REGMAP_TRAP_REQUEST_BIT		0x40
 #define LOLAN_REGMAP_GET_REQUEST_BIT		0x20
+#define LOLAN_REGMAP_REMOTE_UPDATE_BIT		0x10
+
 
 #if defined (__cplusplus)
 extern "C" {
@@ -34,39 +36,32 @@ typedef enum {
 } lolan_VarType;
 
 typedef enum {
-	LOLAN_TRAP=0,
-	LOLAN_INFORM=1,
-	LOLAN_GET=2,
-	LOLAN_SET=3,
-	LOLAN_ACK=4,
-	LOLAN_RETRANSMIT_REQ=5,
-	LOLAN_CONTROL=6,
-	LOLAN_OTHER_PROTOCOL=7
+	BEACON_PACKET=0,
+	DATA_PACKET=1,
+	ACK_PACKET=2,
+	MAC_PACKET=3,
+	LOLAN_INFORM=4,
+	LOLAN_GET=5,
+	LOLAN_SET=6,
+	LOLAN_CONTROL=7
 } lolan_PacketType;
 
-typedef enum {
-	PKT_SMALL=0,
-	PKT_S1_EX=1,
-	PKT_S2_EX=2,
-	PKT_S3_EX=3,
-	PKT_S4_EX=4,
-	PKT_S8_EX=5,
-	PKT_S13_EX=6,
-	PKT_FRAGMENT=7
-} lolan_PacketSize;
 
 // LoLaN packet
 typedef struct {
 	lolan_PacketType packetType;
-	lolan_PacketSize packetSize;
-	uint8_t encrypted;
+	uint16_t packetSize;
+	uint8_t securityEnabled;
+	uint8_t framePending;
+	uint8_t ackRequired;
+	uint8_t bytesToBoundary;
 	uint16_t fromId;
 	uint16_t toId;
 	uint32_t timeStamp;
 	uint8_t extTimeStamp;
 	uint8_t *payload;
 	uint16_t payloadSize;
-	uint8_t payloadBuff[30];
+	uint8_t payloadBuff[32];
 	uint8_t mac[5];
 } lolan_Packet;
 
@@ -84,7 +79,11 @@ typedef struct {
 	uint8_t nodeIV[16];
 } lolan_ctx;
 
-int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, lolan_Packet *lp);
+int8_t lolan_regVar(lolan_ctx *ctx,uint8_t p0,uint8_t p1,uint8_t p2,lolan_VarType vType, void *ptr);
+int8_t lolan_rmVar(lolan_ctx *ctx,uint8_t p0,uint8_t p1,uint8_t p2);
+
+
+int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Packet *lp);
 void lolan_init(lolan_ctx *ctx,uint16_t lolan_address);
 void lolan_setReplyDeviceCallback(lolan_ctx *ctx,uint16_t (*callback)(uint8_t *buf,uint8_t size));
 

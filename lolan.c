@@ -10,6 +10,7 @@
 #include "lolan.h"
 #include "cn-cbor.h"
 
+
 #include <stdint.h>
 
 #ifdef PLATFORM_EFM32
@@ -21,6 +22,10 @@
 
 #include "hmac.h"
 
+
+const char * hwString = 		"OMT_OEK_RevD";
+
+
 uint16_t CRC_calc(uint8_t *start, uint8_t size);
 void AES_CTRUpdate8Bit(uint8_t *ctr);
 
@@ -30,7 +35,7 @@ static uint8_t nodeIV[] = 	 	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 static uint8_t networkKey[] =	{ 0xF2, 0x66, 0x37, 0x69, 0x01, 0x3E, 0x43, 0x62,
 						  0xBE, 0x16, 0x24, 0xE4, 0xFF, 0xC0, 0x64, 0xC6};
 
-int8_t lolan_regVar(lolan_ctx *ctx,uint8_t p0,uint8_t p1,uint8_t p2,lolan_PacketType pType, void *ptr)
+int8_t lolan_regVar(lolan_ctx *ctx,uint8_t p0,uint8_t p1,uint8_t p2,lolan_VarType vType, void *ptr)
 {
 	// TODO: only one p0/p1/p2 var can be in the map. Check for this also
 	for (int i=0; i<LOLAN_REGMAP_SIZE;i++) {
@@ -38,7 +43,7 @@ int8_t lolan_regVar(lolan_ctx *ctx,uint8_t p0,uint8_t p1,uint8_t p2,lolan_Packet
 			ctx->regMap[i].p[0] = p0;
 			ctx->regMap[i].p[1] = p1;
 			ctx->regMap[i].p[2] = p2;
-			ctx->regMap[i].flags = pType;
+			ctx->regMap[i].flags = vType;
 			ctx->regMap[i].data = ptr;
 			return 1;
 		}
@@ -46,7 +51,7 @@ int8_t lolan_regVar(lolan_ctx *ctx,uint8_t p0,uint8_t p1,uint8_t p2,lolan_Packet
 	return -1;
 }
 
-int8_t lolan_rmVar(lolan_ctx *ctx,uint8_t p0,uint8_t p1,uint8_t p2,lolan_PacketType pType, void *ptr)
+int8_t lolan_rmVar(lolan_ctx *ctx,uint8_t p0,uint8_t p1,uint8_t p2)
 {
 	for (int i=0; i<LOLAN_REGMAP_SIZE;i++) {
 		if ((ctx->regMap[i].p[0] == p0) && (ctx->regMap[i].p[1] == p1) && (ctx->regMap[i].p[2] == p2)) {
@@ -64,7 +69,7 @@ int8_t lolan_updateVar(lolan_ctx *ctx,void *ptr)
 	for (int i=0; i<LOLAN_REGMAP_SIZE;i++) {
 		if (ctx->regMap[i].p[0] != 0) {
 			if (ctx->regMap[i].data == ptr) {
-				ctx->regMap[i].flags |= LOLAN_REGMAP_UPDATE_BIT;
+				ctx->regMap[i].flags |= LOLAN_REGMAP_LOCAL_UPDATE_BIT;
 			}
 			return 1;
 		}
@@ -128,41 +133,49 @@ void AES_CTR_Setup(uint8_t *ctr,uint8_t *iv, uint16_t nodeId, uint32_t systime, 
  *   rx packet bytes
  * @param[in] rxp_len
  *   rx packet len
- * @param[out] vsp
- *   pointer to vsun Packet structure
+ * @param[out] lp
+ *   pointer to lolan Packet structure
  * @return
  *   parse result
  *   	2 : success, and processed
  *   	1 : success, not processed
+ *   	0 : not LoLaN packet
  *     -1 : wrong packet format
  *     -2 : auth error / crc error
  *     -3 : process error
  *****************************************************************************/
-int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, lolan_Packet *lp)
+int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Packet *lp)
 {
-	if ((rxp[0] & 0x40) != 0) {
-		return -1;
+	if (((rxp[1]>>4)&0x3) != 3) { // Checking 802.15.4 FRAME version
+		return 0;
 	}
 
 	lp->packetType = rxp[0]&0x03;
-	lp->packetSize = (rxp[0]>>3)&0x03;
-	if ((rxp[0]&0x80) != 0) {lp->encrypted=1;} else {lp->encrypted=0;} //ENC
+	if ((lp->packetType != ACK_PACKET) || (lp->packetType != LOLAN_INFORM) || (lp->packetType != LOLAN_GET) || (lp->packetType != LOLAN_SET)|| (lp->packetType != LOLAN_CONTROL)) {
+		return 0;
+	}
 
-	lp->fromId = *((uint16_t *) &rxp[2]);
-	lp->toId = *((uint16_t *) &rxp[4]);
+	if ((rxp[0]&0x04) != 0) {lp->securityEnabled=1;} else {lp->securityEnabled=0;} //ENC
+	if ((rxp[0]&0x10) != 0) {lp->framePending=1;} else {lp->framePending=0;} //FIXME: implement extended frames
+	if ((rxp[0]&0x20) != 0) {lp->ackRequired=1;} else {lp->ackRequired=0;}
 
-	if (lp->encrypted) {
-		lp->timeStamp = (rxp[9]<<24)|(rxp[8]<<16)|(rxp[7]<<8)|(rxp[6]);
-		lp->extTimeStamp = rxp[10];
+
+	lp->fromId = *((uint16_t *) &rxp[3]);
+	lp->toId = *((uint16_t *) &rxp[5]);
+
+	if (lp->securityEnabled) {
+		lp->bytesToBoundary = ((rxp[1]&0x3)<<2) | ((rxp[0]>>6)&0x3);
+		lp->timeStamp = (rxp[10]<<24)|(rxp[9]<<16)|(rxp[8]<<8)|(rxp[7]);
+		lp->extTimeStamp = rxp[11];
 
 		uint8_t aes_cntr[16];
 		uint8_t hmac[16];
 		uint8_t i;
 		uint8_t x=0;
-		memcpy(lp->mac,&(rxp[27]),5);
+		memcpy(lp->mac,&(rxp[rxp_len-5]),5);
 
 		memset(hmac,16,0);
-		hmac_md5(&(rxp[0]),27,networkKey,16,hmac);
+		hmac_md5(&(rxp[0]),rxp_len-5,networkKey,16,hmac);
 		for (i=0;i<5;i++) {
 			x |= lp->mac[i] - hmac[i];
 		}
@@ -170,7 +183,7 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, lolan_Packet *lp)
 		if (x!=0) {
 			DLOG(("\n lolan_parsePacket(): HMAC verification error!"));
 			DLOG(("\n lolan_parsePacket(): rx_packet: "));
-			for (i=0;i<32;i+=4) {
+			for (i=0;i<rxp_len;i+=4) {
 				DLOG((" %02x %02x %02x %02x",rxp[i],rxp[i+1],rxp[i+2],rxp[i+3]));
 			}
 			DLOG(("\n lolan_parsePacket(): rmac: %02x %02x %02x %02x %02x",lp->mac[0],lp->mac[1],lp->mac[2],lp->mac[3],lp->mac[4]));
@@ -188,32 +201,21 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, lolan_Packet *lp)
 #endif
 
 	} else {
-		memcpy(lp->payloadBuff,&(rxp[6]),16);
-		uint16_t crc16 = CRC_calc(rxp,24);
-		DLOG(("\n CRC16: %04x",crc16));
+		lp->payloadSize = rxp_len-9;
+		memcpy(lp->payloadBuff,&(rxp[7]),lp->payloadSize);
+		uint16_t crc16 = CRC_calc(rxp,rxp_len);
 
 		if (crc16 != 0) {
 			DLOG(("\n lolan_parsePacket(): CRC error\n "));
+			DLOG(("\n CRC16: %04x",crc16));
 			return -2;
 		}
 	}
 
-	if ((lp->packetType == LOLAN_GET) || (lp->packetType == LOLAN_SET) || (lp->packetType == LOLAN_TRAP) || (lp->packetType == LOLAN_INFORM)) {
-		if ((lp->payloadBuff[0] & 0x80)!=0) {
-			lp->payloadBuff[0]&=0x7F;
-			DLOG(("\n lolan_parsePacket(): ext payloadSize\n"));
-			lp->payloadSize = *((uint16_t *) &(lp->payloadBuff));
-			lp->payload = (uint8_t *) &(lp->payloadBuff[2]);
-		} else {
-			lp->payloadBuff[0]&=0x7F;
-			lp->payloadSize = lp->payloadBuff[0];
-			lp->payload = (uint8_t *) &(lp->payloadBuff[1]);
-		}
-	}
 
 	DLOG(("\n lolan_parsePacket(): success"));
-	if (lp->encrypted==1) 	{DLOG(("\n encrypted: 1"));}
-	DLOG(("\n LoLaN packet t:%d s:%d ps:%d from:%d to:%d ",lp->packetType,lp->packetSize,lp->payloadSize,lp->fromId,lp->toId));
+	if (lp->securityEnabled==1) 	{DLOG(("\n securityEnabled: 1"));}
+	DLOG(("\n LoLaN packet t:%d s:%d ps:%d from:%d to:%d ",lp->packetType,rxp_len,lp->payloadSize,lp->fromId,lp->toId));
 
 	if (lp->toId == ctx->myAddress) {
 		if (lp->packetType == LOLAN_GET) {
@@ -232,6 +234,12 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, lolan_Packet *lp)
 						 return -3;  // ERROR: unknow type in GET path
 					 }
 				}
+				DLOG(("\n GET: "));
+				for (int i=0;i<3;i++) {
+					if (p[i]==0) { break; }
+					DLOG(("/%d",p[i]));
+				}
+				//cb =  cn_cbor_string_create(hwString,&err);
 			} else {
 				return -3;
 			}
