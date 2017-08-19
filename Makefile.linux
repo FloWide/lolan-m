@@ -14,6 +14,6 @@ clean:
 	rm -f *.o
 	rm -f *.so
 
-install:
+install: all
 	cp liblolan.so /usr/local/lib/liblolan.so
 	cp lolan.h /usr/local/include/lolan.h

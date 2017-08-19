@@ -9,8 +9,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#include "cn-cbor.h"
-
 
 #ifndef LOLAN_H_
 #define LOLAN_H_
