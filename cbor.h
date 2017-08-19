@@ -71,6 +71,7 @@
 #define IB_FLOAT8 (IB_PRIM | AI_8)
 
 #ifdef PLATFORM_EFM32
+#include <em_device.h>
 // For a lil-endian machine
 #define htonl(v)                ((uint32_t)(__REV(v)))
 #define htons(v)                ((uint16_t)(__REV16(v)))
