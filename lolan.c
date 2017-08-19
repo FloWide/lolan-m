@@ -227,7 +227,7 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Pac
 		AES_CTR128(lp->payload,&(rxp[11]),16,networkKey,aes_cntr,&AES_CTRUpdate8Bit);
 #else
 		aes_ctr_encrypt(networkKey, 16,&(rxp[11]), 16, aes_cntr);
-		memcpy(lp->payloadBuff,&(rxp[11]),16);
+		memcpy(lp->payload,&(rxp[11]),16);
 #endif
 
 	} else {
