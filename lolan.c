@@ -133,19 +133,21 @@ void lolan_sendPacket(lolan_ctx *ctx, lolan_Packet *lp)
 	if (lp->framePending) { txp[0]|=0x10; }
 	if (lp->ackRequired) { txp[0]|=0x20;}
 
-	uint8_t *fromId = *((uint16_t *) &txp[3]);
-	uint8_t *toId = *((uint16_t *) &txp[5]);
+	uint16_t *fromId = ((uint16_t *) &txp[3]);
+	uint16_t *toId = ((uint16_t *) &txp[5]);
 
 	*fromId = lp->fromId;
 	*toId =  lp->toId;
 
-	memcpy(&(txp[7]),lp->payloadSize,lp->payloadSize);
+	memcpy(&(txp[7]),lp->payload,lp->payloadSize);
 	uint16_t crc16 = CRC_calc(txp,7+lp->payloadSize);
 
 	txp[7+lp->payloadSize] = crc16&0xFF;
 	txp[7+lp->payloadSize+1] = (crc16>>8)&0xFF;
 
-	ctx->replyDeviceCallbackFunc(txp,7+lp->payloadSize+2);
+	if (ctx->replyDeviceCallbackFunc != NULL) {
+		ctx->replyDeviceCallbackFunc(txp,7+lp->payloadSize+2);
+	}
 }
 
 /**************************************************************************//**
