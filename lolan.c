@@ -125,13 +125,16 @@ void AES_CTR_Setup(uint8_t *ctr,uint8_t *iv, uint16_t nodeId, uint32_t systime, 
 void lolan_sendPacket(lolan_ctx *ctx, lolan_Packet *lp)
 {
 	uint8_t txp[LOLAN_MAX_PACKET_SIZE];
-	memset(txp,0,sizeof(txp));
+	memset(txp,0,LOLAN_MAX_PACKET_SIZE);
 
 	txp[0] = lp->packetType;
 
 	if (lp->securityEnabled) { txp[0]|=0x08; }
 	if (lp->framePending) { txp[0]|=0x10; }
 	if (lp->ackRequired) { txp[0]|=0x20;}
+
+	txp[1]=0x74; // 802.15.4 protocol version=3
+	txp[2] = lp->packetCounter;
 
 	uint16_t *fromId = ((uint16_t *) &txp[3]);
 	uint16_t *toId = ((uint16_t *) &txp[5]);
@@ -144,6 +147,11 @@ void lolan_sendPacket(lolan_ctx *ctx, lolan_Packet *lp)
 
 	txp[7+lp->payloadSize] = crc16&0xFF;
 	txp[7+lp->payloadSize+1] = (crc16>>8)&0xFF;
+
+	DLOG(("\n Sending packet with size=%d \n",7+lp->payloadSize+2));
+	for (int i=0;i<(7+lp->payloadSize+2);i+=4) {
+		DLOG((" %02x %02x %02x %02x",txp[i],txp[i+1],txp[i+2],txp[i+3]));
+	}
 
 	if (ctx->replyDeviceCallbackFunc != NULL) {
 		ctx->replyDeviceCallbackFunc(txp,7+lp->payloadSize+2);
@@ -249,9 +257,12 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Pac
 	if (lp->toId == ctx->myAddress) {
 		if (lp->packetType == LOLAN_GET) {
 			lolan_Packet replyPacket;
+			memset(&replyPacket,0,sizeof(lolan_Packet));
+			replyPacket.payload = malloc(LOLAN_MAX_PACKET_SIZE);
 			if (lolan_processGet(ctx,lp,&replyPacket)) {
 				lolan_sendPacket(ctx,&replyPacket);
 			}
+			free(replyPacket.payload);
 			return 2; // successfull processing
 		}
 	}

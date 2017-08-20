@@ -13,11 +13,6 @@
 #ifndef LOLAN_H_
 #define LOLAN_H_
 
-#define LOLAN_MAX_PACKET_SIZE	64
-
-#define LOLAN_REGMAP_SIZE	20
-// the maximum number of registers to be mapped. This will result in LOLAN_REG_MAP_SIZE*8 byte data reserved
-
 #define LOLAN_REGMAP_TYPE_MASK				0x0F
 
 #define LOLAN_REGMAP_LOCAL_UPDATE_BIT		0x80
@@ -57,6 +52,7 @@ typedef struct {
 	uint8_t framePending;
 	uint8_t ackRequired;
 	uint8_t bytesToBoundary;
+	uint8_t packetCounter;
 	uint16_t fromId;
 	uint16_t toId;
 	uint32_t timeStamp;
@@ -67,7 +63,7 @@ typedef struct {
 } lolan_Packet;
 
 typedef struct {
-	uint8_t p[3];
+	uint8_t p[LOLAN_REGMAP_DEPTH];
 	uint8_t flags;
 	void *data;
 } lolan_RegMap;
