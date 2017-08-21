@@ -44,6 +44,10 @@ typedef enum {
 	LOLAN_CONTROL=7
 } lolan_PacketType;
 
+typedef enum {
+	TIMING_PACKET=1,
+	RESEND_REQUEST_PACKET=2
+} lolan_PacketType;
 
 // LoLaN packet
 typedef struct {
