@@ -254,14 +254,17 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Pac
 			DLOG(("\n CRC16: %04x",crc16));
 			return -2;
 		}
+
 		lp->payloadSize = rxp_len-9;
 		lp->payload = malloc(rxp_len-9);
 		memcpy(lp->payload,&(rxp[7]),lp->payloadSize);
 	}
 
-
 	DLOG(("\n LoLaN packet t:%d s:%d ps:%d from:%d to:%d enc:%d",lp->packetType,rxp_len,lp->payloadSize,lp->fromId,lp->toId,lp->securityEnabled));
-
+#ifndef PLATFORM_EFM32
+	fflush(stdout);
+#endif
+	
 	if (lp->toId == ctx->myAddress) {
 		if (lp->packetType == LOLAN_GET) {
 			lolan_Packet replyPacket;
