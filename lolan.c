@@ -119,18 +119,21 @@ static const unsigned short CRC_CCITT_TABLE[256] =
     0x6E17, 0x7E36, 0x4E55, 0x5E74, 0x2E93, 0x3EB2, 0x0ED1, 0x1EF0
 };
 
-uint16_t CRC_calc(uint8_t *buf, uint8_t size)
+uint16_t CRC_calc(uint8_t *val, uint8_t size)
 {
-    uint16_t tmp;
-    uint16_t crc = 0xffff;
-
-    for (int i=0; i < size ; i++)
+    uint16_t crc;
+    uint16_t q;
+    uint8_t c;
+    crc = 0;
+    for (int i = 0; i < size; i++)
     {
-        tmp = (crc >> 8) ^ buf[i];
-        crc = (crc << 8) ^ CRC_CCITT_TABLE[tmp];
+        c = val[i];
+        q = (crc ^ c) & 0x0f;
+        crc = (crc >> 4) ^ (q * 0x1081);
+        q = (crc ^ (c >> 4)) & 0xf;
+        crc = (crc >> 4) ^ (q * 0x1081);
     }
-
-    return crc;
+    return (uint8_t) crc << 8 | (uint8_t) (crc >> 8);
 }
 
 void AES_CTRUpdate8Bit(uint8_t *ctr)
