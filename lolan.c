@@ -25,20 +25,18 @@
 uint16_t CRC_calc(uint8_t *start, uint8_t size);
 void AES_CTRUpdate8Bit(uint8_t *ctr);
 
-static uint8_t nodeIV[] = 	 	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+static const uint8_t nodeIV[] = 	 	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 					   	  0x82, 0x38, 0xF7, 0xE1, 0xA5, 0x3C, 0x4E, 0xC9}; // this part is random, and public known
 
-static uint8_t networkKey[] =	{ 0xF2, 0x66, 0x37, 0x69, 0x01, 0x3E, 0x43, 0x62,
+static const uint8_t networkKey[] =	{ 0xF2, 0x66, 0x37, 0x69, 0x01, 0x3E, 0x43, 0x62,
 						  0xBE, 0x16, 0x24, 0xE4, 0xFF, 0xC0, 0x64, 0xC6};
 
-int8_t lolan_regVar(lolan_ctx *ctx,uint8_t p0,uint8_t p1,uint8_t p2,lolan_VarType vType, void *ptr)
+int8_t lolan_regVar(lolan_ctx *ctx,const uint8_t *p,lolan_VarType vType, void *ptr)
 {
-	// TODO: only one p0/p1/p2 var can be in the map. Check for this also
+	// TODO: only one p path can be in the map. Check for this also
 	for (int i=0; i<LOLAN_REGMAP_SIZE;i++) {
 		if (ctx->regMap[i].p[0] == 0) {
-			ctx->regMap[i].p[0] = p0;
-			ctx->regMap[i].p[1] = p1;
-			ctx->regMap[i].p[2] = p2;
+			memcpy(ctx->regMap[i].p,p,LOLAN_REGMAP_DEPTH);
 			ctx->regMap[i].flags = vType;
 			ctx->regMap[i].data = ptr;
 			return 1;
@@ -47,13 +45,11 @@ int8_t lolan_regVar(lolan_ctx *ctx,uint8_t p0,uint8_t p1,uint8_t p2,lolan_VarTyp
 	return -1;
 }
 
-int8_t lolan_rmVar(lolan_ctx *ctx,uint8_t p0,uint8_t p1,uint8_t p2)
+int8_t lolan_rmVar(lolan_ctx *ctx,const uint8_t *p)
 {
 	for (int i=0; i<LOLAN_REGMAP_SIZE;i++) {
-		if ((ctx->regMap[i].p[0] == p0) && (ctx->regMap[i].p[1] == p1) && (ctx->regMap[i].p[2] == p2)) {
-			ctx->regMap[i].p[0] = 0;
-			ctx->regMap[i].p[1] = 0;
-			ctx->regMap[i].p[2] = 0;
+		if (memcmp (p,ctx->regMap[i].p,LOLAN_REGMAP_DEPTH)==0) {
+			memset(ctx->regMap[i].p,0,LOLAN_REGMAP_DEPTH);
 			ctx->regMap[i].flags = 0;
 		}
 	}
@@ -77,6 +73,7 @@ void lolan_init(lolan_ctx *ctx,uint16_t lolan_address)
 {
 	ctx->replyDeviceCallbackFunc = NULL;
 	ctx->myAddress = lolan_address;
+	ctx->packetCounter = 1;
 	memcpy(ctx->networkKey,networkKey,16);
 	memcpy(ctx->nodeIV,nodeIV,16);
 }
@@ -122,6 +119,14 @@ void AES_CTR_Setup(uint8_t *ctr,uint8_t *iv, uint16_t nodeId, uint32_t systime, 
 	ctr[7]=(nodeId)&0xFF;
 }
 
+/**************************************************************************//**
+ * @brief
+ *   send packet with the packet transmitting callback
+ * @param[in] ctx
+ *   context for lolan packet processing
+ * @param[in] lp
+ *   pointer to lolan Packet structure
+ *****************************************************************************/
 void lolan_sendPacket(lolan_ctx *ctx, lolan_Packet *lp)
 {
 	uint8_t txp[LOLAN_MAX_PACKET_SIZE];
@@ -145,8 +150,8 @@ void lolan_sendPacket(lolan_ctx *ctx, lolan_Packet *lp)
 	memcpy(&(txp[7]),lp->payload,lp->payloadSize);
 	uint16_t crc16 = CRC_calc(txp,7+lp->payloadSize);
 
-	txp[7+lp->payloadSize] = crc16&0xFF;
-	txp[7+lp->payloadSize+1] = (crc16>>8)&0xFF;
+	txp[7+lp->payloadSize] = (crc16>>8)&0xFF;
+	txp[7+lp->payloadSize+1] = crc16&0xFF;
 
 	DLOG(("\n Sending packet with size=%d \n",7+lp->payloadSize+2));
 	for (int i=0;i<(7+lp->payloadSize+2);i+=4) {
@@ -161,6 +166,9 @@ void lolan_sendPacket(lolan_ctx *ctx, lolan_Packet *lp)
 /**************************************************************************//**
  * @brief
  *   parse incoming packet to a lolan packet structure
+ *   IMPORTANT: lp->payload will point to memory allocated for the packet. If it is not null at start, free is called on it.
+ * @param[in] ctx
+ *   context for lolan packet processsing
  * @param[in] rxp
  *   rx packet bytes
  * @param[in] rxp_len
@@ -169,10 +177,10 @@ void lolan_sendPacket(lolan_ctx *ctx, lolan_Packet *lp)
  *   pointer to lolan Packet structure
  * @return
  *   parse result
- *   	2 : success, and processed
- *   	1 : success, not processed
+ *   	2 : success (packet valid), and processed (we are the consignee and command served, ack packet sent)
+ *   	1 : success, not processed (packet valid, but addressed to another node)
  *   	0 : not LoLaN packet
- *     -1 : wrong packet format
+ *     -1 : parse error (wrong LoLaN packet format)
  *     -2 : auth error / crc error
  *     -3 : process error
  *****************************************************************************/
@@ -196,6 +204,7 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Pac
 	if ((rxp[0]&0x10) != 0) {lp->framePending=1;} else {lp->framePending=0;} //FIXME: implement extended frames
 	if ((rxp[0]&0x20) != 0) {lp->ackRequired=1;} else {lp->ackRequired=0;}
 
+	lp->packetCounter = rxp[2];
 
 	lp->fromId = *((uint16_t *) &rxp[3]);
 	lp->toId = *((uint16_t *) &rxp[5]);

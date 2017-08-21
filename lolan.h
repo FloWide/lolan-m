@@ -70,14 +70,15 @@ typedef struct {
 
 typedef struct {
 	uint16_t myAddress;
+	uint8_t packetCounter;
 	lolan_RegMap regMap[LOLAN_REGMAP_SIZE];
 	void (*replyDeviceCallbackFunc)(uint8_t *buf,uint8_t size);
 	uint8_t networkKey[16];
 	uint8_t nodeIV[16];
 } lolan_ctx;
 
-int8_t lolan_regVar(lolan_ctx *ctx,uint8_t p0,uint8_t p1,uint8_t p2,lolan_VarType vType, void *ptr);
-int8_t lolan_rmVar(lolan_ctx *ctx,uint8_t p0,uint8_t p1,uint8_t p2);
+int8_t lolan_regVar(lolan_ctx *ctx,const uint8_t *p,lolan_VarType vType, void *ptr);
+int8_t lolan_rmVar(lolan_ctx *ctx,const uint8_t *p);
 
 void lolan_sendPacket(lolan_ctx *ctx, lolan_Packet *lp);
 
@@ -87,6 +88,8 @@ void lolan_setReplyDeviceCallback(lolan_ctx *ctx,void (*callback)(uint8_t *buf,u
 
 
 uint8_t lolan_processGet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply);
+int8_t lolan_setupGet(lolan_ctx *ctx,lolan_Packet *lp, uint16_t toId, const uint8_t *p);
+
 
 #if defined (__cplusplus)
 }
