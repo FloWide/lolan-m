@@ -264,19 +264,6 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Pac
 #ifndef PLATFORM_EFM32
 	fflush(stdout);
 #endif
-	
-	if (lp->toId == ctx->myAddress) {
-		if (lp->packetType == LOLAN_GET) {
-			lolan_Packet replyPacket;
-			memset(&replyPacket,0,sizeof(lolan_Packet));
-			replyPacket.payload = malloc(LOLAN_MAX_PACKET_SIZE);
-			if (lolan_processGet(ctx,lp,&replyPacket)) {
-				lolan_sendPacket(ctx,&replyPacket);
-			}
-			free(replyPacket.payload);
-			return 2; // successfull processing
-		}
-	}
 
 	return 1; // successful parsing
 }
