@@ -11,6 +11,7 @@
 
 
 #include <stdint.h>
+#include <stdio.h>
 
 #ifdef PLATFORM_EFM32
 #include "em_aes.h"
