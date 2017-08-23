@@ -202,13 +202,9 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Pac
 		return 0;
 	}
 
-	if ((rxp[1]&0x80) != 0) {
-	    lp->routingRequested=1;
-	}
+	if ((rxp[1]&0x80) != 0) { lp->routingRequested=1; } else { lp->routingRequested=0; }
 
-	if ((rxp[1]&0x08) != 0) {
-	    lp->packetRouted=1;
-	}
+	if ((rxp[1]&0x08) != 0) { lp->packetRouted=1; } else { lp->packetRouted=0; }
 
 	lp->packetType = rxp[0]&0x07;
 	if (!((lp->packetType == ACK_PACKET) || (lp->packetType == LOLAN_INFORM) || (lp->packetType == LOLAN_GET) || (lp->packetType == LOLAN_SET) || (lp->packetType == LOLAN_CONTROL))) {
