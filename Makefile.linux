@@ -17,3 +17,4 @@ clean:
 install: all
 	cp liblolan.so /usr/local/lib/liblolan.so
 	cp lolan.h /usr/local/include/lolan.h
+	cp lolan_config.h /usr/local/include/lolan_config.h

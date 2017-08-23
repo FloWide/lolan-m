@@ -199,7 +199,8 @@ If security enabled, these bits inidicate the number of random filled bytes at t
 
 #### __bit10-11__:  Dest addressing mode
 
-Set to 01 for LoLaN
+Set to 01 for direct packet
+Set to 11 for routable packet
 
 #### __bit12-13__:  Frame version
 
@@ -207,4 +208,5 @@ Set to 03 for LoLaN
 
 #### __bit14-15__:  Source addressing mode
 
-Set to 01 for LoLaN
+Set to 01 for direct sending
+Set to 11 for routed packet

@@ -139,6 +139,13 @@ void lolan_sendPacket(lolan_ctx *ctx, lolan_Packet *lp)
 	if (lp->ackRequired) { txp[0]|=0x20;}
 
 	txp[1]=0x74; // 802.15.4 protocol version=3
+	if (lp->routingRequested) {
+	    txp[1] |= 0x80;
+	}
+	if (lp->packetRouted) {
+	    txp[1] |= 0x08;
+	}
+
 	txp[2] = lp->packetCounter;
 
 	uint16_t *fromId = ((uint16_t *) &txp[3]);
@@ -193,6 +200,14 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Pac
 
 	if (((rxp[1]>>4)&0x3) != 3) { // Checking 802.15.4 FRAME version
 		return 0;
+	}
+
+	if ((rxp[1]&0x80) != 0) {
+	    lp->routingRequested=1;
+	}
+
+	if ((rxp[1]&0x08) != 0) {
+	    lp->packetRouted=1;
 	}
 
 	lp->packetType = rxp[0]&0x07;
