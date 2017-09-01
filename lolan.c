@@ -11,6 +11,7 @@
 
 
 #include <stdint.h>
+#include <stdio.h>
 
 #ifdef PLATFORM_EFM32
 #include "em_aes.h"
@@ -83,22 +84,21 @@ void lolan_setReplyDeviceCallback(lolan_ctx *ctx,void (*callback)(uint8_t *buf,u
 	ctx->replyDeviceCallbackFunc = callback;
 }
 
-uint16_t CRC_calc(uint8_t *start, uint8_t size)
+uint16_t CRC_calc(uint8_t *val, uint8_t size)
 {
-  uint16_t crc = 0x0;
-  uint8_t  *data;
-  uint8_t *end;
-  end = start+size;
-
-  for (data = start; data < end; data++)
-  {
-    crc  = (crc >> 8) | (crc << 8);
-    crc ^= *data;
-    crc ^= (crc & 0xff) >> 4;
-    crc ^= crc << 12;
-    crc ^= (crc & 0xff) << 5;
-  }
-  return crc;
+    uint16_t crc;
+    uint16_t q;
+    uint8_t c;
+    crc = 0;
+    for (int i = 0; i < size; i++)
+    {
+        c = val[i];
+        q = (crc ^ c) & 0x0f;
+        crc = (crc >> 4) ^ (q * 0x1081);
+        q = (crc ^ (c >> 4)) & 0xf;
+        crc = (crc >> 4) ^ (q * 0x1081);
+    }
+    return (uint8_t) crc << 8 | (uint8_t) (crc >> 8);
 }
 
 void AES_CTRUpdate8Bit(uint8_t *ctr)
@@ -139,6 +139,13 @@ void lolan_sendPacket(lolan_ctx *ctx, lolan_Packet *lp)
 	if (lp->ackRequired) { txp[0]|=0x20;}
 
 	txp[1]=0x74; // 802.15.4 protocol version=3
+	if (lp->routingRequested) {
+	    txp[1] |= 0x80;
+	}
+	if (lp->packetRouted) {
+	    txp[1] |= 0x08;
+	}
+
 	txp[2] = lp->packetCounter;
 
 	uint16_t *fromId = ((uint16_t *) &txp[3]);
@@ -194,6 +201,10 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Pac
 	if (((rxp[1]>>4)&0x3) != 3) { // Checking 802.15.4 FRAME version
 		return 0;
 	}
+
+	if ((rxp[1]&0x80) != 0) { lp->routingRequested=1; } else { lp->routingRequested=0; }
+
+	if ((rxp[1]&0x08) != 0) { lp->packetRouted=1; } else { lp->packetRouted=0; }
 
 	lp->packetType = rxp[0]&0x07;
 	if (!((lp->packetType == ACK_PACKET) || (lp->packetType == LOLAN_INFORM) || (lp->packetType == LOLAN_GET) || (lp->packetType == LOLAN_SET) || (lp->packetType == LOLAN_CONTROL))) {
@@ -255,26 +266,16 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Pac
 			DLOG(("\n CRC16: %04x",crc16));
 			return -2;
 		}
+
 		lp->payloadSize = rxp_len-9;
 		lp->payload = malloc(rxp_len-9);
 		memcpy(lp->payload,&(rxp[7]),lp->payloadSize);
 	}
 
-
 	DLOG(("\n LoLaN packet t:%d s:%d ps:%d from:%d to:%d enc:%d",lp->packetType,rxp_len,lp->payloadSize,lp->fromId,lp->toId,lp->securityEnabled));
-
-	if (lp->toId == ctx->myAddress) {
-		if (lp->packetType == LOLAN_GET) {
-			lolan_Packet replyPacket;
-			memset(&replyPacket,0,sizeof(lolan_Packet));
-			replyPacket.payload = malloc(LOLAN_MAX_PACKET_SIZE);
-			if (lolan_processGet(ctx,lp,&replyPacket)) {
-				lolan_sendPacket(ctx,&replyPacket);
-			}
-			free(replyPacket.payload);
-			return 2; // successfull processing
-		}
-	}
+#ifndef PLATFORM_EFM32
+	fflush(stdout);
+#endif
 
 	return 1; // successful parsing
 }
