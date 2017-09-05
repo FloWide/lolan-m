@@ -8,8 +8,6 @@
 #ifndef LOLAN_CONFIG_H_
 #define LOLAN_CONFIG_H_
 
-//#define PLATFORM_EFM32
-
 #define LOLAN_MAX_PACKET_SIZE	64
 
 #define LOLAN_REGMAP_SIZE	20
@@ -19,11 +17,14 @@
 
 #define LOLAN_REGMAP_RECURSION 1
 
-#define DEBUG_PRINTF
+#define PLATFORM_EFM32
+
+//#define DEBUG_SWO
 
 #if defined DEBUG_PRINTF
 #define DLOG(arg) printf arg
 #elif defined DEBUG_SWO
+#include "SWOUtils.h"
 #define DLOG(arg) SWOPrintf arg
 #else
 #define DLOG(arg)
