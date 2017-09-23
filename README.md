@@ -157,10 +157,10 @@ The INFROM message can be acknowledged in the current timeslot (ACK request bit 
 
 ##### 5: LOLAN GET
 
-Payload is the path to be accessed. Path is defined as an array
+Payload is the path to be accessed. Path is defined as an array at key 0.
 
 ```language-json
-	[2,33,4,1]
+	{ 0: [2,33,4,1] }
 ```
 
 This means GET /2/33/4/1.
