@@ -123,19 +123,19 @@ void readTTy(int fd)
     		if (slp.decodeBuffer.size() > 0) {
 		    if (slp.decodeBuffer.at(0)=='{') { // this is an ASCII packet, now we ignore
 		    } else {
-			std::cout << "\n=>[ ";
-			for (int i=0;i<slp.decodeBuffer.size();i++) {
-	    		    printf("%02X ",(uint8_t) slp.decodeBuffer.at(i));
-			}
-			std::cout << "]";
+//			std::cout << "\n=>[ ";
+//			for (int i=0;i<slp.decodeBuffer.size();i++) {
+//	    		    printf("%02X ",(uint8_t) slp.decodeBuffer.at(i));
+//			}
+//			std::cout << "]";
 			std::lock_guard<std::mutex> lock( dequeMutex );
 			lpQueue.push_back(slp.decodeBuffer);
 		    }
 		}
-    		slp.decodeBuffer.clear();
-    	    }
+		slp.decodeBuffer.clear();
+	    }
 	} else {
-    	    usleep(10);
+	    usleep(10);
 	}
 
         if (quit) {
@@ -216,11 +216,58 @@ int main(int argc, char** argv) {
     lp.payloadSize = v_cbor.size();
     llSendPacket(fd,&lp);
 
-    sleep(1);
+    usleep(100000);
+
+    auto start = std::chrono::steady_clock::now();
+    bool sleep=false;
+
+    while (quit==false) {
+	std::vector<uint8_t> lpbuff;
+	{
+    	    std::lock_guard<std::mutex> lock( dequeMutex );
+    	    if (lpQueue.size()>0) {
+		lpbuff = lpQueue.front();
+		lpQueue.pop_front();
+		sleep = false;
+    	    } else {
+		sleep = true;
+    	    }
+	}
+ 
+	if (sleep) {
+    	    usleep(10);
+	} else {
+    	    std::cout << "\n=>[ ";
+    	    uint8_t buff[130];
+    	    uint8_t *b = buff;
+    	    for (auto& it : lpbuff) {
+		*b = it;
+		printf("%02X ",*b);
+		b++;
+    	    }
+    	    std::cout << "]";
+	    lolan_Packet rlp;
+	    memset(&rlp,0,sizeof(lolan_Packet));
+            if (lolan_parsePacket(&lctx,buff,lpbuff.size(),&rlp)==1) {
+		if ((rlp.packetType==ACK_PACKET) && (rlp.fromId == lp.toId) && (rlp.toId == lp.fromId) && (rlp.packetCounter==lp.packetCounter)) {
+		    std::cout << "\n reply caught" << std::flush;
+		    std::vector<uint8_t> v_cbor;
+		    v_cbor.resize(rlp.payloadSize);
+		    v_cbor.assign(rlp.payload,rlp.payload+rlp.payloadSize);
+		    nlohmann::json j_from_cbor = nlohmann::json::from_cbor(v_cbor);
+		    std::cout << " cbor="<<j_from_cbor << std::flush;
+		    quit=true;
+		}
+	    }
+            if (rlp.payload) {
+		free(rlp.payload);
+    	    }
+	}
+    }
+
     std::cout << "\n" << std::flush;
 
     /* read from stdin and send it to the serial port */
-    quit=true;
     readerThread.join();
     close(fd);
     return 0;
