@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include "lolan_config.h"
 
 
 #ifndef LOLAN_H_
@@ -30,7 +31,10 @@ typedef enum {
 	LOLAN_INT16=2,
 	LOLAN_INT32=3,
 	LOLAN_STR=4,
-	LOLAN_FLOAT=5
+	LOLAN_FLOAT=5,
+	LOLAN_UINT8=6,
+	LOLAN_UINT16=7,
+	LOLAN_UINT32=8,
 } lolan_VarType;
 
 typedef enum {

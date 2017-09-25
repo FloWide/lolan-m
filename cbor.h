@@ -70,13 +70,19 @@
 #define IB_FLOAT4 (IB_PRIM | AI_4)
 #define IB_FLOAT8 (IB_PRIM | AI_8)
 
-#ifdef PLATFORM_EFM32
+#if defined PLATFORM_EFM32
 #include <em_device.h>
 // For a lil-endian machine
 #define htonl(v)                ((uint32_t)(__REV(v)))
 #define htons(v)                ((uint16_t)(__REV16(v)))
 #define ntohl(v)                ((uint32_t)(__REV(v)))
 #define ntohs(v) ((uint16_t)((__REV16(v))))
+#elif defined USE_CONTIKI
+#include "net/ip/uip.h"
+#define htonl(v) UIP_HTONL((uint32_t)(v))
+#define htons(v) UIP_HTONS((uint16_t)(v))
+#define ntohl(v) uip_ntohl((uint32_t)(v))
+#define ntohs(v) uip_ntohs((uint16_t)(v))
 #else
 #include <netinet/in.h>
 #endif

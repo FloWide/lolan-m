@@ -34,8 +34,9 @@ static const uint8_t networkKey[] =	{ 0xF2, 0x66, 0x37, 0x69, 0x01, 0x3E, 0x43, 
 
 int8_t lolan_regVar(lolan_ctx *ctx,const uint8_t *p,lolan_VarType vType, void *ptr)
 {
+	int i;
 	// TODO: only one p path can be in the map. Check for this also
-	for (int i=0; i<LOLAN_REGMAP_SIZE;i++) {
+	for (i=0; i<LOLAN_REGMAP_SIZE;i++) {
 		if (ctx->regMap[i].p[0] == 0) {
 			memcpy(ctx->regMap[i].p,p,LOLAN_REGMAP_DEPTH);
 			ctx->regMap[i].flags = vType;
@@ -48,7 +49,8 @@ int8_t lolan_regVar(lolan_ctx *ctx,const uint8_t *p,lolan_VarType vType, void *p
 
 int8_t lolan_rmVar(lolan_ctx *ctx,const uint8_t *p)
 {
-	for (int i=0; i<LOLAN_REGMAP_SIZE;i++) {
+	int i;
+	for (i=0; i<LOLAN_REGMAP_SIZE;i++) {
 		if (memcmp (p,ctx->regMap[i].p,LOLAN_REGMAP_DEPTH)==0) {
 			memset(ctx->regMap[i].p,0,LOLAN_REGMAP_DEPTH);
 			ctx->regMap[i].flags = 0;
@@ -59,7 +61,8 @@ int8_t lolan_rmVar(lolan_ctx *ctx,const uint8_t *p)
 
 int8_t lolan_updateVar(lolan_ctx *ctx,void *ptr)
 {
-	for (int i=0; i<LOLAN_REGMAP_SIZE;i++) {
+	int i;
+	for (i=0; i<LOLAN_REGMAP_SIZE;i++) {
 		if (ctx->regMap[i].p[0] != 0) {
 			if (ctx->regMap[i].data == ptr) {
 				ctx->regMap[i].flags |= LOLAN_REGMAP_LOCAL_UPDATE_BIT;
@@ -90,7 +93,8 @@ uint16_t CRC_calc(uint8_t *val, uint8_t size)
     uint16_t q;
     uint8_t c;
     crc = 0;
-    for (int i = 0; i < size; i++)
+    int i;
+    for (i = 0; i < size; i++)
     {
         c = val[i];
         q = (crc ^ c) & 0x0f;
@@ -161,7 +165,8 @@ void lolan_sendPacket(lolan_ctx *ctx, lolan_Packet *lp)
 	txp[7+lp->payloadSize+1] = crc16&0xFF;
 
 	DLOG(("\n Sending packet with size=%d \n",7+lp->payloadSize+2));
-	for (int i=0;i<(7+lp->payloadSize+2);i+=4) {
+	int i;
+	for (i=0;i<(7+lp->payloadSize+2);i+=4) {
 		DLOG((" %02x %02x %02x %02x",txp[i],txp[i+1],txp[i+2],txp[i+3]));
 	}
 
