@@ -31,10 +31,7 @@ typedef enum {
 	LOLAN_INT16=2,
 	LOLAN_INT32=3,
 	LOLAN_STR=4,
-	LOLAN_FLOAT=5,
-	LOLAN_UINT8=6,
-	LOLAN_UINT16=7,
-	LOLAN_UINT32=8,
+	LOLAN_FLOAT=5
 } lolan_VarType;
 
 typedef enum {
@@ -96,9 +93,10 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Pac
 void lolan_init(lolan_ctx *ctx,uint16_t lolan_address);
 void lolan_setReplyDeviceCallback(lolan_ctx *ctx,void (*callback)(uint8_t *buf,uint8_t size));
 
-
 uint8_t lolan_processGet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply);
 int8_t lolan_setupGet(lolan_ctx *ctx,lolan_Packet *lp, uint16_t toId, const uint8_t *p);
+
+uint8_t lolan_processSet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply);
 
 
 #if defined (__cplusplus)

@@ -234,7 +234,13 @@ int main(int argc, char** argv) {
 			}
 			free(replyPacket.payload);
 		    } else if (lp.packetType == LOLAN_SET) {
-		        std::cout << "LOLAN_INFORM\n";
+			lolan_Packet replyPacket;
+			memset(&replyPacket,0,sizeof(lolan_Packet));
+			replyPacket.payload = (uint8_t *) malloc(LOLAN_MAX_PACKET_SIZE);
+			if (lolan_processSet(&lctx,&lp,&replyPacket)) {
+			    llSendPacket(fd,&replyPacket);
+			}
+			free(replyPacket.payload);
 		    }
 		}
 	    }

@@ -51,7 +51,7 @@ uint8_t lolan_processSet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
 			 p[i] = val->v.uint;
 		 } else {
 			cn_cbor_free(cb);
-			return -3;  // ERROR: unknow type in GET path
+			return -3;  // ERROR: unknow type in SET path
 		 }
 	}
 	DLOG(("\n SET: "));
@@ -59,27 +59,66 @@ uint8_t lolan_processSet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
 		if (p[i]==0) { break; }
 		DLOG(("/%d",p[i]));
 	}
-	cn_cbor_free(cb);
-	cb=NULL;
 
+	cn_cbor *val = cn_cbor_mapget_int(cb,1);
+	if (val == NULL) {
+		DLOG(("\nSET VALUE not found"));
+		return -3;
+	}
+
+	int found = 0;
 
 	for (i=0;i<LOLAN_REGMAP_SIZE;i++) {
 		if (ctx->regMap[i].p[0] == 0) {
 		    continue; // free slot of regmap
 		}
 		if (memcmp (p,ctx->regMap[i].p,LOLAN_REGMAP_DEPTH)==0) {
+		    DLOG(("\n found variable"));
+		    if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_INT8) {
+			int8_t *sv;
+			sv = ctx->regMap[i].data;
+			if (val->type == CN_CBOR_UINT) {
+			    *sv = val->v.uint;
+			} else if (val->type == CN_CBOR_INT) {
+			    *sv = val->v.sint;
+			} else if (val->type == CN_CBOR_TRUE) {
+			    *sv = 1;
+			} else if (val->type == CN_CBOR_FALSE) {
+			    *sv = 0;
+			}
+		    } else if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_INT16) {
+			int16_t *sv;
+			sv = ctx->regMap[i].data;
+			if (val->type == CN_CBOR_UINT) {
+			    *sv = val->v.uint;
+			} else if (val->type == CN_CBOR_INT) {
+			    *sv = val->v.sint;
+			} else if (val->type == CN_CBOR_TRUE) {
+			    *sv = 1;
+			} else if (val->type == CN_CBOR_FALSE) {
+			    *sv = 0;
+			}
+		    }
+		    found = 1;
+		    break;
 		}
 	}
+
+	cn_cbor_free(cb);
+	cb=NULL;
+
+	cb = cn_cbor_map_create(&err);
+	if (found) {
+		// resource not found
+		cn_cbor_mapput_int(cb, 0, cn_cbor_int_create(200, &err), &err);
+	} else {
+		cn_cbor_mapput_int(cb, 0, cn_cbor_int_create(404, &err), &err);
+	}
+
 
 	if (err.err != CN_CBOR_NO_ERROR) {
 		DLOG(("\n cbor error = %d",err.err));
 		return -1;
-	}
-
-	if (cb == NULL) {
-		// resource not found
-		cb = cn_cbor_map_create(&err);
-		cn_cbor_mapput_int(cb, 0, cn_cbor_int_create(404, &err), &err);
 	}
 
 	reply->packetCounter = lp->packetCounter;
