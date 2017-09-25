@@ -10,6 +10,14 @@ OBJS=$(SRCS:.c=.o)
 all : $(OBJS)
 	gcc -shared $(OBJS) -o liblolan.so
 
+lolan-server:
+	g++ -std=c++14 ./tests/lolan-server.cpp -lpthread -llolan -o ./tests/lolan-server
+
+lolan-client:
+	g++ -std=c++14 ./tests/lolan-client.cpp -lpthread -llolan -o ./tests/lolan-client
+
+tests: lolan-server lolan-client
+
 clean:
 	rm -f *.o
 	rm -f *.so
