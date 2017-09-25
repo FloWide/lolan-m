@@ -32,6 +32,8 @@ static const uint8_t nodeIV[] = 	 	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0
 static const uint8_t networkKey[] =	{ 0xF2, 0x66, 0x37, 0x69, 0x01, 0x3E, 0x43, 0x62,
 						  0xBE, 0x16, 0x24, 0xE4, 0xFF, 0xC0, 0x64, 0xC6};
 
+static payload_buffer[LOLAN_MAX_PACKET_SIZE];
+
 int8_t lolan_regVar(lolan_ctx *ctx,const uint8_t *p,lolan_VarType vType, void *ptr)
 {
 	int i;
@@ -198,11 +200,6 @@ void lolan_sendPacket(lolan_ctx *ctx, lolan_Packet *lp)
  *****************************************************************************/
 int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Packet *lp)
 {
-	if (lp->payload != NULL) { // free payload buffer if it points to somewhere
-		free(lp->payload);
-		lp->payload = NULL;
-	}
-
 	if (((rxp[1]>>4)&0x3) != 3) { // Checking 802.15.4 FRAME version
 		return 0;
 	}
@@ -273,7 +270,7 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Pac
 		}
 
 		lp->payloadSize = rxp_len-9;
-		lp->payload = malloc(rxp_len-9);
+		lp->payload = payload_buffer;
 		memcpy(lp->payload,&(rxp[7]),lp->payloadSize);
 	}
 

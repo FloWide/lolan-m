@@ -238,9 +238,6 @@ int main(int argc, char** argv) {
 		    }
 		}
 	    }
-	    if (lp.payload) {
-		free(lp.payload);
-	    }
 	}
     }
 

@@ -91,17 +91,17 @@ d##3 = TE0(s##3) ^ TE1(s##0) ^ TE2(s##1) ^ TE3(s##2) ^ rk[4 * i + 3]
 	PUTU32(ct + 12, s3);
 }
 
+static unsigned char aes_rk[AES_PRIV_SIZE];
 
 void * aes_encrypt_init(const u8 *key, size_t len)
 {
 	u32 *rk;
 	int res;
-	rk = malloc(AES_PRIV_SIZE);
+	rk = aes_rk;
 	if (rk == NULL)
 		return NULL;
 	res = rijndaelKeySetupEnc(rk, key, len * 8);
 	if (res < 0) {
-		free(rk);
 		return NULL;
 	}
 	rk[AES_PRIV_NR_POS] = res;
@@ -120,5 +120,4 @@ int aes_encrypt(void *ctx, const u8 *plain, u8 *crypt)
 void aes_encrypt_deinit(void *ctx)
 {
 	memset(ctx, 0, AES_PRIV_SIZE);
-	free(ctx);
 }

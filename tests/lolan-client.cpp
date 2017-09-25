@@ -259,9 +259,6 @@ int main(int argc, char** argv) {
 		    quit=true;
 		}
 	    }
-            if (rlp.payload) {
-		free(rlp.payload);
-    	    }
 	}
     }
 
