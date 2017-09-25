@@ -48,8 +48,9 @@ int is_empty(uint8_t *buf, size_t size)
 void add_regMap(lolan_ctx *ctx,cn_cbor *cb_map,uint8_t *p,uint8_t plevel,cn_cbor_errback *err,uint8_t recursion)
 {
 	cn_cbor *cb;
+	int i=0;
 
-	for (int i=0;i<LOLAN_REGMAP_SIZE;i++) {
+	for (i=0;i<LOLAN_REGMAP_SIZE;i++) {
 		if (ctx->regMap[i].p[0] == 0) {
 			continue; // free slot of regmap
 		}
@@ -105,6 +106,8 @@ void add_regMap(lolan_ctx *ctx,cn_cbor *cb_map,uint8_t *p,uint8_t plevel,cn_cbor
 
 uint8_t lolan_processGet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
 {
+	int i=0;
+
 	cn_cbor *cb;
 	cn_cbor *cb_path_array;
 	cn_cbor_errback err;
@@ -117,7 +120,7 @@ uint8_t lolan_processGet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
 	uint8_t p[LOLAN_REGMAP_DEPTH];
 	memset(p,0,LOLAN_REGMAP_DEPTH);
 	if (cb_path_array->length > LOLAN_REGMAP_DEPTH) { cn_cbor_free(cb); return -3; } // ERROR: too long GET path
-	for (int i=0;i<cb_path_array->length;i++) {
+	for (i=0;i<cb_path_array->length;i++) {
 		 cn_cbor *val = cn_cbor_index(cb_path_array, i);
 		 if (val->type == CN_CBOR_UINT) {
 			 p[i] = val->v.uint;
@@ -127,7 +130,7 @@ uint8_t lolan_processGet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
 		 }
 	}
 	DLOG(("\n GET: "));
-	for (int i=0;i<3;i++) {
+	for (i=0;i<3;i++) {
 		if (p[i]==0) { break; }
 		DLOG(("/%d",p[i]));
 	}
@@ -144,7 +147,7 @@ uint8_t lolan_processGet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
 			p_nulls++;
 			pp--;
 		}
-		for (int i=0;i<LOLAN_REGMAP_SIZE;i++) {
+		for (i=0;i<LOLAN_REGMAP_SIZE;i++) {
 			if (ctx->regMap[i].p[0] == 0) {
 				continue; // free slot of regmap
 			}
@@ -210,6 +213,8 @@ uint8_t lolan_processGet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
  *****************************************************************************/
 int8_t lolan_setupGet(lolan_ctx *ctx,lolan_Packet *lp, uint16_t toId, const uint8_t *p)
 {
+	int i=0;
+
 	cn_cbor *cb = NULL;
 	cn_cbor *cb_path_array = NULL;
 	cn_cbor_errback err;
@@ -226,7 +231,7 @@ int8_t lolan_setupGet(lolan_ctx *ctx,lolan_Packet *lp, uint16_t toId, const uint
 		return -1;
 	}
 
-	for (int i=0;i<LOLAN_REGMAP_DEPTH;i++) {
+	for (i=0;i<LOLAN_REGMAP_DEPTH;i++) {
 		if (p[i] == 0) {
 			break;
 		}
