@@ -154,11 +154,10 @@ void lolan_sendPacket(lolan_ctx *ctx, lolan_Packet *lp)
 
 	txp[2] = lp->packetCounter;
 
-	uint16_t *fromId = ((uint16_t *) &txp[3]);
-	uint16_t *toId = ((uint16_t *) &txp[5]);
-
-	*fromId = lp->fromId;
-	*toId =  lp->toId;
+	txp[3] = (lp->fromId)&0xFF;
+	txp[4] = (lp->fromId>>8)&0xFF;
+	txp[5] = (lp->toId)&0xFF;
+	txp[6] = (lp->toId>>8)&0xFF;
 
 	memcpy(&(txp[7]),lp->payload,lp->payloadSize);
 	uint16_t crc16 = CRC_calc(txp,7+lp->payloadSize);
@@ -219,8 +218,8 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Pac
 
 	lp->packetCounter = rxp[2];
 
-	lp->fromId = *((uint16_t *) &rxp[3]);
-	lp->toId = *((uint16_t *) &rxp[5]);
+	lp->fromId = rxp[3] | (rxp[4]<<8);
+	lp->toId =  rxp[5] | (rxp[6]<<8);
 
 	if (lp->securityEnabled) {
 		lp->bytesToBoundary = ((rxp[1]&0x3)<<2) | ((rxp[0]>>6)&0x3);

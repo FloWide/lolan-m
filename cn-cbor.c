@@ -54,10 +54,28 @@ static double decode_half(int half) {
 }
 #endif /* CBOR_NO_FLOAT */
 
-/* Fix these if you can't do non-aligned reads */
+
 #define ntoh8p(p) (*(unsigned char*)(p))
+
+#ifdef UNALIGNED_NOT_SUPPORTED
+static uint16_t ntoh16p(unsigned char *p) {
+  uint16_t ret = ntoh8p(p);
+  ret <<= 8;
+  ret += ntoh8p(p+1);
+  return ret;
+}
+static uint32_t ntoh32p(unsigned char *p) {
+  uint64_t ret = ntoh16p(p);
+  ret <<= 16;
+  ret += ntoh16p(p+2);
+  return ret;
+}
+#else
+/* Fix these if you can't do non-aligned reads */
 #define ntoh16p(p) (ntohs(*(unsigned short*)(p)))
 #define ntoh32p(p) (ntohl(*(unsigned long*)(p)))
+#endif
+
 static uint64_t ntoh64p(unsigned char *p) {
   uint64_t ret = ntoh32p(p);
   ret <<= 32;
