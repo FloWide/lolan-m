@@ -8,12 +8,11 @@
 
 #include "lolan_config.h"
 #include "lolan.h"
-#include "cn-cbor.h"
 
 
 #include <stdint.h>
 
-
+/*
 int8_t lolan_setRegFromCbor(lolan_ctx *ctx,const uint8_t *p,cn_cbor *val)
 {
 	int8_t found=0;
@@ -58,10 +57,10 @@ int8_t lolan_setRegFromCbor(lolan_ctx *ctx,const uint8_t *p,cn_cbor *val)
 	}
 	return found;
 }
-
+*/
 /**************************************************************************//**
  * @brief
- *   process GET request
+ *   process SET request
  * @param[in] ctx
  *   context for lolan packet processsing
  * @param[out] lp
@@ -78,7 +77,7 @@ int8_t lolan_setRegFromCbor(lolan_ctx *ctx,const uint8_t *p,cn_cbor *val)
 uint8_t lolan_processSet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
 {
 	int i=0;
-
+/*
 	cn_cbor *cb;
 	cn_cbor *cb_path_array;
 	cn_cbor_errback err;
@@ -172,14 +171,13 @@ uint8_t lolan_processSet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
 		DLOG(("\n cbor error = %d",err.err));
 		return -1;
 	}
-
+*/
 	reply->packetCounter = lp->packetCounter;
 	reply->packetType = ACK_PACKET;
 	reply->fromId = lp->toId;
 	reply->toId = lp->fromId;
-	reply->payloadSize = cn_cbor_encoder_write(reply->payload, 0, LOLAN_MAX_PACKET_SIZE, cb_result);
-	DLOG(("\n Encoded reply to %d bytes",reply->payloadSize));
-	cn_cbor_free(cb_result);
+//	reply->payloadSize = cn_cbor_encoder_write(reply->payload, 0, LOLAN_MAX_PACKET_SIZE, cb_result);
+//	DLOG(("\n Encoded reply to %d bytes",reply->payloadSize));
 	return 1;
 }
 
@@ -202,43 +200,11 @@ uint8_t lolan_processSet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
  *****************************************************************************/
 int8_t lolan_setupSet(lolan_ctx *ctx,lolan_Packet *lp, uint16_t toId, const uint8_t *p)
 {
-	int i=0;
-
-	cn_cbor *cb = NULL;
-	cn_cbor *cb_path_array = NULL;
-	cn_cbor_errback err;
-
-	cb = cn_cbor_map_create(&err);
-
-	if (cb == NULL) {
-		return -1;
-	}
-
-	cb_path_array = cn_cbor_array_create(&err);
-
-	if (cb_path_array == NULL) {
-		return -1;
-	}
-
-	for (i=0;i<LOLAN_REGMAP_DEPTH;i++) {
-		if (p[i] == 0) {
-			break;
-		}
-		cn_cbor_array_append(cb_path_array, cn_cbor_int_create(p[i], &err), &err);
-	}
-	cn_cbor_mapput_int(cb, 0, cb_path_array, &err);
-
-	if (err.err != CN_CBOR_NO_ERROR) {
-		DLOG(("\n cbor error = %d",err.err));
-		return -1;
-	}
-
 	lp->packetCounter = ctx->packetCounter++;
 	lp->packetType = LOLAN_GET;
 	lp->fromId = ctx->myAddress;
 	lp->toId = toId;
-	lp->payloadSize = cn_cbor_encoder_write(lp->payload, 0, LOLAN_MAX_PACKET_SIZE, cb);
+//	lp->payloadSize = cn_cbor_encoder_write(lp->payload, 0, LOLAN_MAX_PACKET_SIZE, cb);
 //	DLOG(("\n Encoded reply to %d bytes",lp->payloadSize));
-	cn_cbor_free(cb);
 	return 1;
 }

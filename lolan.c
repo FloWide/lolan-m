@@ -13,25 +13,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#ifdef PLATFORM_EFM32
-#include "em_aes.h"
-#else
-#include "aes.h"
-#include "aes_wrap.h"
-#endif
-
-#include "hmac.h"
-
-
 uint16_t CRC_calc(uint8_t *start, uint8_t size);
-void AES_CTRUpdate8Bit(uint8_t *ctr);
-
-static const uint8_t nodeIV[] = 	 	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-					   	  0x82, 0x38, 0xF7, 0xE1, 0xA5, 0x3C, 0x4E, 0xC9}; // this part is random, and public known
-
-static const uint8_t networkKey[] =	{ 0xF2, 0x66, 0x37, 0x69, 0x01, 0x3E, 0x43, 0x62,
-						  0xBE, 0x16, 0x24, 0xE4, 0xFF, 0xC0, 0x64, 0xC6};
-
 static uint8_t payload_buffer[LOLAN_MAX_PACKET_SIZE];
 
 int8_t lolan_regVar(lolan_ctx *ctx,const uint8_t *p,lolan_VarType vType, void *ptr)
@@ -94,8 +76,8 @@ void lolan_init(lolan_ctx *ctx,uint16_t lolan_address)
 	ctx->replyDeviceCallbackFunc = NULL;
 	ctx->myAddress = lolan_address;
 	ctx->packetCounter = 1;
-	memcpy(ctx->networkKey,networkKey,16);
-	memcpy(ctx->nodeIV,nodeIV,16);
+//	memcpy(ctx->networkKey,networkKey,16);
+//	memcpy(ctx->nodeIV,nodeIV,16);
 }
 
 void lolan_setReplyDeviceCallback(lolan_ctx *ctx,void (*callback)(uint8_t *buf,uint8_t size))
@@ -121,23 +103,6 @@ uint16_t CRC_calc(uint8_t *val, uint8_t size)
     return (uint8_t) crc << 8 | (uint8_t) (crc >> 8);
 }
 
-void AES_CTRUpdate8Bit(uint8_t *ctr)
-{
-	(*ctr)++;
-}
-
-void AES_CTR_Setup(uint8_t *ctr,uint8_t *iv, uint16_t nodeId, uint32_t systime, uint8_t ext_systime)
-{
-	memcpy(ctr,iv,16);
-	ctr[0]=0;
-	ctr[1]=ext_systime;
-	ctr[2]=(systime>>24)&0xFF;
-	ctr[3]=(systime>>16)&0xFF;
-	ctr[4]=(systime>>8)&0xFF;
-	ctr[5]=(systime)&0xFF;
-	ctr[6]=(nodeId>>8)&0xFF;
-	ctr[7]=(nodeId)&0xFF;
-}
 
 /**************************************************************************//**
  * @brief
@@ -236,43 +201,7 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Pac
 	lp->toId =  rxp[5] | (rxp[6]<<8);
 
 	if (lp->securityEnabled) {
-		lp->bytesToBoundary = ((rxp[1]&0x3)<<2) | ((rxp[0]>>6)&0x3);
-		lp->timeStamp = (rxp[10]<<24)|(rxp[9]<<16)|(rxp[8]<<8)|(rxp[7]);
-		lp->extTimeStamp = rxp[11];
-
-		uint8_t aes_cntr[16];
-		uint8_t hmac[16];
-		uint8_t i;
-		uint8_t x=0;
-		lp->mac = &(rxp[rxp_len-5]);
-
-		memset(hmac,16,0);
-		hmac_md5(&(rxp[0]),rxp_len-5,networkKey,16,hmac);
-		for (i=0;i<5;i++) {
-			x |= lp->mac[i] - hmac[i];
-		}
-
-		if (x!=0) {
-			DLOG(("\n lolan_parsePacket(): HMAC verification error!"));
-			DLOG(("\n lolan_parsePacket(): rx_packet: "));
-			for (i=0;i<rxp_len;i+=4) {
-				DLOG((" %02x %02x %02x %02x",rxp[i],rxp[i+1],rxp[i+2],rxp[i+3]));
-			}
-			DLOG(("\n lolan_parsePacket(): rmac: %02x %02x %02x %02x %02x",lp->mac[0],lp->mac[1],lp->mac[2],lp->mac[3],lp->mac[4]));
-			DLOG(("\n lolan_parsePacket(): cmac: %02x %02x %02x %02x %02x",hmac[0],hmac[1],hmac[2],hmac[3],hmac[4]));
-			return -2; // hmac verification failed
-		}
-
-		AES_CTR_Setup(aes_cntr,nodeIV,lp->fromId,lp->timeStamp,lp->extTimeStamp);
-		return -1; // TODO: implement multiblock encryption
-
-#ifdef PLATFORM_EFM32
-		AES_CTR128(lp->payload,&(rxp[11]),16,networkKey,aes_cntr,&AES_CTRUpdate8Bit);
-#else
-		aes_ctr_encrypt(networkKey, 16,&(rxp[11]), 16, aes_cntr);
-		memcpy(lp->payload,&(rxp[11]),16);
-#endif
-
+//TODO: implement security
 	} else {
 		uint16_t crc16 = CRC_calc(rxp,rxp_len);
 
@@ -288,9 +217,6 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Pac
 	}
 
 	DLOG(("\n LoLaN packet t:%d s:%d ps:%d from:%d to:%d enc:%d",lp->packetType,rxp_len,lp->payloadSize,lp->fromId,lp->toId,lp->securityEnabled));
-#ifndef PLATFORM_EFM32
-	fflush(stdout);
-#endif
 
 	return 1; // successful parsing
 }
