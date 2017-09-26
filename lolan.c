@@ -32,7 +32,7 @@ static const uint8_t nodeIV[] = 	 	{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0
 static const uint8_t networkKey[] =	{ 0xF2, 0x66, 0x37, 0x69, 0x01, 0x3E, 0x43, 0x62,
 						  0xBE, 0x16, 0x24, 0xE4, 0xFF, 0xC0, 0x64, 0xC6};
 
-static payload_buffer[LOLAN_MAX_PACKET_SIZE];
+static uint8_t payload_buffer[LOLAN_MAX_PACKET_SIZE];
 
 int8_t lolan_regVar(lolan_ctx *ctx,const uint8_t *p,lolan_VarType vType, void *ptr)
 {
@@ -61,13 +61,27 @@ int8_t lolan_rmVar(lolan_ctx *ctx,const uint8_t *p)
 	return -1;
 }
 
-int8_t lolan_updateVar(lolan_ctx *ctx,void *ptr)
+int8_t lolan_setFlags(lolan_ctx *ctx,void *ptr, uint8_t flag)
 {
 	int i;
 	for (i=0; i<LOLAN_REGMAP_SIZE;i++) {
 		if (ctx->regMap[i].p[0] != 0) {
 			if (ctx->regMap[i].data == ptr) {
-				ctx->regMap[i].flags |= LOLAN_REGMAP_LOCAL_UPDATE_BIT;
+				ctx->regMap[i].flags |= flag;
+			}
+			return 1;
+		}
+	}
+	return -1;
+}
+
+int8_t lolan_clearFlags(lolan_ctx *ctx,void *ptr, uint8_t flag)
+{
+	int i;
+	for (i=0; i<LOLAN_REGMAP_SIZE;i++) {
+		if (ctx->regMap[i].p[0] != 0) {
+			if (ctx->regMap[i].data == ptr) {
+				ctx->regMap[i].flags &= ~(flag);
 			}
 			return 1;
 		}

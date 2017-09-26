@@ -137,7 +137,7 @@ INFROM: no payload
 
 GET: 0 key indicates result code (integer according to HTTP status codes) other key-value pairs contains data requested
 
-SET: 0 key indicates result code (integer according to HTTP status codes), no payload
+SET: 0 key indicates result code (integer according to HTTP status codes), other key-value pairs contain results for each independent key-value updates
 
 ##### 3: 802.15.4 MAC
 

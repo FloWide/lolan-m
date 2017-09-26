@@ -13,6 +13,52 @@
 
 #include <stdint.h>
 
+
+int8_t lolan_setRegFromCbor(lolan_ctx *ctx,const uint8_t *p,cn_cbor *val)
+{
+	int8_t found=0;
+	int i;
+	for (i=0;i<LOLAN_REGMAP_SIZE;i++) {
+		if (ctx->regMap[i].p[0] == 0) {
+		    continue; // free slot of regmap
+		}
+		if (memcmp (p,ctx->regMap[i].p,LOLAN_REGMAP_DEPTH)==0) {
+		    if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_INT8) {
+			int8_t *sv;
+			sv = ctx->regMap[i].data;
+			if (val->type == CN_CBOR_UINT) {
+			    *sv = val->v.uint;
+			} else if (val->type == CN_CBOR_INT) {
+			    *sv = val->v.sint;
+			} else if (val->type == CN_CBOR_TRUE) {
+			    *sv = 1;
+			} else if (val->type == CN_CBOR_FALSE) {
+			    *sv = 0;
+			} else {
+			    return -1;
+			}
+		    } else if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_INT16) {
+			int16_t *sv;
+			sv = ctx->regMap[i].data;
+			if (val->type == CN_CBOR_UINT) {
+			    *sv = val->v.uint;
+			} else if (val->type == CN_CBOR_INT) {
+			    *sv = val->v.sint;
+			} else if (val->type == CN_CBOR_TRUE) {
+			    *sv = 1;
+			} else if (val->type == CN_CBOR_FALSE) {
+			    *sv = 0;
+			} else {
+			    return -1;
+			}
+		    }
+		    found = 1;
+		    break;
+		}
+	}
+	return found;
+}
+
 /**************************************************************************//**
  * @brief
  *   process GET request
@@ -59,60 +105,66 @@ uint8_t lolan_processSet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
 		if (p[i]==0) { break; }
 		DLOG(("/%d",p[i]));
 	}
-
-	cn_cbor *val = cn_cbor_mapget_int(cb,1);
-	if (val == NULL) {
-		DLOG(("\nSET VALUE not found"));
-		return -3;
+	if (i>2) {
+	    DLOG(("\n malformed request"));
+	    cn_cbor_free(cb);
+	    return -3;
 	}
 
-	int found = 0;
+	cn_cbor *cb_result = cn_cbor_map_create(&err);
+	cn_cbor* cp;
+	uint8_t numberOfKeys=0;
+	uint8_t error=0;
+	int firstKey=-1;
+	int key=0;
 
-	for (i=0;i<LOLAN_REGMAP_SIZE;i++) {
-		if (ctx->regMap[i].p[0] == 0) {
-		    continue; // free slot of regmap
-		}
-		if (memcmp (p,ctx->regMap[i].p,LOLAN_REGMAP_DEPTH)==0) {
-		    DLOG(("\n found variable"));
-		    if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_INT8) {
-			int8_t *sv;
-			sv = ctx->regMap[i].data;
-			if (val->type == CN_CBOR_UINT) {
-			    *sv = val->v.uint;
-			} else if (val->type == CN_CBOR_INT) {
-			    *sv = val->v.sint;
-			} else if (val->type == CN_CBOR_TRUE) {
-			    *sv = 1;
-			} else if (val->type == CN_CBOR_FALSE) {
-			    *sv = 0;
+	for (cp = cb->first_child; cp && cp->next && (firstKey!=key); cp = cp->next->next) {
+	    key=0;
+	    switch(cp->type) {
+		case CN_CBOR_UINT:
+		    key = cp->v.uint;
+		case CN_CBOR_INT:
+		    if (key!=0) { key = cp->v.sint; }
+		    if (key!=0) {
+			if (firstKey == -1) {
+			    firstKey = key;
+			} else {
+			    if (key == firstKey) { // we have turned around?
+				break;
+			    }
 			}
-		    } else if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_INT16) {
-			int16_t *sv;
-			sv = ctx->regMap[i].data;
-			if (val->type == CN_CBOR_UINT) {
-			    *sv = val->v.uint;
-			} else if (val->type == CN_CBOR_INT) {
-			    *sv = val->v.sint;
-			} else if (val->type == CN_CBOR_TRUE) {
-			    *sv = 1;
-			} else if (val->type == CN_CBOR_FALSE) {
-			    *sv = 0;
+			DLOG(("\nFound key %d for SET",key));
+			cn_cbor *val = cn_cbor_mapget_int(cb,key);
+			numberOfKeys++;
+			p[i] = key;
+			if (lolan_setRegFromCbor(ctx,p,val)==1) {
+			    cn_cbor_mapput_int(cb_result, key, cn_cbor_int_create(200, &err), &err);
+			} else {
+			    cn_cbor_mapput_int(cb_result, key, cn_cbor_int_create(500, &err), &err);
+			    error=1;
 			}
 		    }
-		    found = 1;
-		    break;
-		}
+		break;
+		default:
+		; // skip non-integer keys
+	    }
 	}
-
 	cn_cbor_free(cb);
 	cb=NULL;
 
-	cb = cn_cbor_map_create(&err);
-	if (found) {
-		// resource not found
-		cn_cbor_mapput_int(cb, 0, cn_cbor_int_create(200, &err), &err);
+	if (numberOfKeys > 1) {
+		cn_cbor_mapput_int(cb_result, 0, cn_cbor_int_create(207, &err), &err); // mulitstatus result
 	} else {
-		cn_cbor_mapput_int(cb, 0, cn_cbor_int_create(404, &err), &err);
+		// resource not found
+		if (numberOfKeys==1) {
+		    if (error) {
+			cn_cbor_mapput_int(cb_result, 0, cn_cbor_int_create(500, &err), &err);
+		    } else {
+			cn_cbor_mapput_int(cb_result, 0, cn_cbor_int_create(200, &err), &err);
+		    }
+		} else {
+		    cn_cbor_mapput_int(cb_result, 0, cn_cbor_int_create(404, &err), &err);
+		}
 	}
 
 
@@ -125,9 +177,9 @@ uint8_t lolan_processSet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
 	reply->packetType = ACK_PACKET;
 	reply->fromId = lp->toId;
 	reply->toId = lp->fromId;
-	reply->payloadSize = cn_cbor_encoder_write(reply->payload, 0, LOLAN_MAX_PACKET_SIZE, cb);
+	reply->payloadSize = cn_cbor_encoder_write(reply->payload, 0, LOLAN_MAX_PACKET_SIZE, cb_result);
 	DLOG(("\n Encoded reply to %d bytes",reply->payloadSize));
-	cn_cbor_free(cb);
+	cn_cbor_free(cb_result);
 	return 1;
 }
 
