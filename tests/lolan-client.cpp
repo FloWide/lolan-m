@@ -248,6 +248,7 @@ int main(int argc, char** argv) {
     	    std::cout << "]";
 	    lolan_Packet rlp;
 	    memset(&rlp,0,sizeof(lolan_Packet));
+	    rlp.payload=(uint8_t *) malloc(LOLAN_MAX_PACKET_SIZE);
             if (lolan_parsePacket(&lctx,buff,lpbuff.size(),&rlp)==1) {
 		if ((rlp.packetType==ACK_PACKET) && (rlp.fromId == lp.toId) && (rlp.toId == lp.fromId) && (rlp.packetCounter==lp.packetCounter)) {
 		    std::cout << "\n reply caught" << std::flush;
@@ -259,6 +260,7 @@ int main(int argc, char** argv) {
 		    quit=true;
 		}
 	    }
+	    free(rlp.payload);
 	}
     }
 

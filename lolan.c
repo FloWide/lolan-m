@@ -14,7 +14,6 @@
 #include <stdio.h>
 
 uint16_t CRC_calc(uint8_t *start, uint8_t size);
-static uint8_t payload_buffer[LOLAN_MAX_PACKET_SIZE];
 
 int8_t lolan_regVar(lolan_ctx *ctx,const uint8_t *p,lolan_VarType vType, void *ptr)
 {
@@ -151,7 +150,7 @@ int8_t lolan_createPacket(lolan_ctx *ctx, lolan_Packet *lp, uint8_t *buf, int *s
 /**************************************************************************//**
  * @brief
  *   parse incoming packet to a lolan packet structure
- *   IMPORTANT: lp->payload will point to memory allocated for the packet. If it is not null at start, free is called on it.
+ *   IMPORTANT: lp->payload hat to point to a memory space enough for LOLAN_MAX_PACKET_SIZE
  * @param[in] ctx
  *   context for lolan packet processsing
  * @param[in] rxp
@@ -162,8 +161,7 @@ int8_t lolan_createPacket(lolan_ctx *ctx, lolan_Packet *lp, uint8_t *buf, int *s
  *   pointer to lolan Packet structure
  * @return
  *   parse result
- *   	2 : success (packet valid), and processed (we are the consignee and command served, ack packet sent)
- *   	1 : success, not processed (packet valid, but addressed to another node)
+ *   	1 : success
  *   	0 : not LoLaN packet
  *     -1 : parse error (wrong LoLaN packet format)
  *     -2 : auth error / crc error
@@ -205,7 +203,6 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Pac
 		}
 
 		lp->payloadSize = rxp_len-9;
-		lp->payload = payload_buffer;
 		memcpy(lp->payload,&(rxp[7]),lp->payloadSize);
 	}
 

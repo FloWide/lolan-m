@@ -223,6 +223,7 @@ int main(int argc, char** argv) {
     	    }
 	    lolan_Packet lp;
 	    memset(&lp,0,sizeof(lolan_Packet));
+	    lp.payload = (uint8_t *) malloc(LOLAN_MAX_PACKET_SIZE);
             if (lolan_parsePacket(&lctx,buff,lpbuff.size(),&lp)==1) {
 		if (lctx.myAddress == lp.toId) {
 		    if (lp.packetType == LOLAN_GET) {
@@ -244,6 +245,7 @@ int main(int argc, char** argv) {
 		    }
 		}
 	    }
+	    free(lp.payload);
 	}
     }
 
