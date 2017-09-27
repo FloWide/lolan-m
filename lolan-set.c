@@ -12,9 +12,8 @@
 
 
 #include <stdint.h>
-
 /*
-int8_t lolan_setRegFromCbor(lolan_ctx *ctx,const uint8_t *p,cn_cbor *val)
+int8_t lolan_setIntRegFromCbor(lolan_ctx *ctx,const uint8_t *p, int val)
 {
 	int8_t found=0;
 	int i;
@@ -26,31 +25,36 @@ int8_t lolan_setRegFromCbor(lolan_ctx *ctx,const uint8_t *p,cn_cbor *val)
 		    if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_INT8) {
 			int8_t *sv;
 			sv = ctx->regMap[i].data;
-			if (val->type == CN_CBOR_UINT) {
-			    *sv = val->v.uint;
-			} else if (val->type == CN_CBOR_INT) {
-			    *sv = val->v.sint;
-			} else if (val->type == CN_CBOR_TRUE) {
-			    *sv = 1;
-			} else if (val->type == CN_CBOR_FALSE) {
-			    *sv = 0;
-			} else {
-			    return -1;
-			}
+			*sv = val
 		    } else if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_INT16) {
 			int16_t *sv;
 			sv = ctx->regMap[i].data;
-			if (val->type == CN_CBOR_UINT) {
-			    *sv = val->v.uint;
-			} else if (val->type == CN_CBOR_INT) {
-			    *sv = val->v.sint;
-			} else if (val->type == CN_CBOR_TRUE) {
-			    *sv = 1;
-			} else if (val->type == CN_CBOR_FALSE) {
-			    *sv = 0;
-			} else {
-			    return -1;
-			}
+			*sv = val
+		    }
+		    found = 1;
+		    break;
+		}
+	}
+	return found;
+}
+
+int8_t lolan_setStrRegFromCbor(lolan_ctx *ctx,const uint8_t *p, const char *str)
+{
+	int8_t found=0;
+	int i;
+	for (i=0;i<LOLAN_REGMAP_SIZE;i++) {
+		if (ctx->regMap[i].p[0] == 0) {
+		    continue; // free slot of regmap
+		}
+		if (memcmp (p,ctx->regMap[i].p,LOLAN_REGMAP_DEPTH)==0) {
+		    if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_INT8) {
+			int8_t *sv;
+			sv = ctx->regMap[i].data;
+			*sv = val
+		    } else if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_INT16) {
+			int16_t *sv;
+			sv = ctx->regMap[i].data;
+			*sv = val
 		    }
 		    found = 1;
 		    break;
@@ -59,6 +63,7 @@ int8_t lolan_setRegFromCbor(lolan_ctx *ctx,const uint8_t *p,cn_cbor *val)
 	return found;
 }
 */
+
 /**************************************************************************//**
  * @brief
  *   process SET request
@@ -90,111 +95,148 @@ uint8_t lolan_processSet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
         DLOG(("/%d",p[i]));
     }
 
+
+    CborError err;
+    uint8_t numberOfKeys=0;
+    uint8_t error=0;
+    int key=0;
+
+    CborParser parser;
+    CborValue it;
+    err = cbor_parser_init(lp->payload, lp->payloadSize, 0, &parser, &it);
+
+    if (err) {
+	DLOG(("\n cbor parse error"));
+	return -2;
+    }
+
+    if (cbor_value_get_type(&it) != CborMapType) {
+	DLOG(("\n cbor parse error: map not found"));
+	return -2;
+    }
+    size_t mapLen;
+    err = cbor_value_get_map_length(&it,&mapLen);
+    DLOG(("parsed map length=%d",(int) mapLen));
+    if (err) {
+	DLOG(("\n cbor parse error"));
+	return -2;
+    }
+
     CborEncoder enc;
     cbor_encoder_init(&enc,reply->payload,LOLAN_MAX_PACKET_SIZE,0);
+    CborEncoder map_enc;
 
-/*
-	cn_cbor *cb;
-	cn_cbor *cb_path_array;
-	cn_cbor_errback err;
+    if (mapLen<3) {mapLen=1;}
 
-	cb = cn_cbor_decode(lp->payload, lp->payloadSize , &err);
-	if (cb == NULL) { return -1;}
-	cb_path_array = cn_cbor_mapget_int(cb,0);
-	if (cb_path_array == NULL) { cn_cbor_free(cb); return -1;}
+    err = cbor_encoder_create_map(&enc,&map_enc,mapLen);
+    if (err) {
+	DLOG(("\n cbor parse error"));
+	return -2;
+    }
 
-	uint8_t p[LOLAN_REGMAP_DEPTH];
-	memset(p,0,LOLAN_REGMAP_DEPTH);
-	if (cb_path_array->length > LOLAN_REGMAP_DEPTH) { cn_cbor_free(cb); return -3; } // ERROR: too long GET path
-	for (i=0;i<cb_path_array->length;i++) {
-		 cn_cbor *val = cn_cbor_index(cb_path_array, i);
-		 if (val->type == CN_CBOR_UINT) {
-			 p[i] = val->v.uint;
-		 } else {
-			cn_cbor_free(cb);
-			return -3;  // ERROR: unknow type in SET path
-		 }
+    CborValue rit;
+    err = cbor_value_enter_container(&it, &rit);
+    if (err) {
+	DLOG(("\n cbor parse error"));
+	return -2;
+    }
+
+    while (!cbor_value_at_end(&rit)) {
+        int key = -1;
+        if (cbor_value_get_type(&rit) != CborIntegerType) {
+    	    DLOG(("\n cbor parse error: key has to be integer"));
+        }
+        cbor_value_get_int(&rit,&key);
+
+        err = cbor_value_advance_fixed(&rit);
+        if (err) {
+    	    DLOG(("\n cbor parse error"));
+    	    return -2;
+        }
+
+	if (cbor_value_at_end(&rit)) {
+    	    DLOG(("\n cbor parse error"));
+    	    return -2;
 	}
-	DLOG(("\n SET: "));
-	for (i=0;i<3;i++) {
-		if (p[i]==0) { break; }
-		DLOG(("/%d",p[i]));
-	}
-	if (i>2) {
-	    DLOG(("\n malformed request"));
-	    cn_cbor_free(cb);
-	    return -3;
-	}
 
-	cn_cbor *cb_result = cn_cbor_map_create(&err);
-	cn_cbor* cp;
-	uint8_t numberOfKeys=0;
-	uint8_t error=0;
-	int firstKey=-1;
-	int key=0;
-
-	for (cp = cb->first_child; cp && cp->next && (firstKey!=key); cp = cp->next->next) {
-	    key=0;
-	    switch(cp->type) {
-		case CN_CBOR_UINT:
-		    key = cp->v.uint;
-		case CN_CBOR_INT:
-		    if (key!=0) { key = cp->v.sint; }
-		    if (key!=0) {
-			if (firstKey == -1) {
-			    firstKey = key;
-			} else {
-			    if (key == firstKey) { // we have turned around?
-				break;
-			    }
-			}
-			DLOG(("\nFound key %d for SET",key));
-			cn_cbor *val = cn_cbor_mapget_int(cb,key);
-			numberOfKeys++;
-			p[i] = key;
-			if (lolan_setRegFromCbor(ctx,p,val)==1) {
-			    cn_cbor_mapput_int(cb_result, key, cn_cbor_int_create(200, &err), &err);
-			} else {
-			    cn_cbor_mapput_int(cb_result, key, cn_cbor_int_create(500, &err), &err);
-			    error=1;
-			}
-		    }
-		break;
-		default:
-		; // skip non-integer keys
+	if (key==0) { // ignore key 0 that is the path
+    	    if (getPathFromCbor(p, &rit)!=1) {
+    		DLOG(("\n path decoding error"));
+		return -2;
+    	    }
+	    continue;
+	} else {
+	    DLOG(("\n key:%d ",key));
+	    if (cbor_value_get_type(&rit) == CborByteStringType) {
+		size_t len=LOLAN_MAX_PACKET_SIZE;
+		uint8_t buf[LOLAN_MAX_PACKET_SIZE];
+		err = cbor_value_copy_byte_string(&rit, buf, &len, &rit);
+		if (err) {
+		    DLOG(("\n cbor parse string error"));
+		    return -2;
+		}
+		DLOG((" value:%s ",buf));
+		cbor_encode_int(&map_enc, key);
+		cbor_encode_int(&map_enc, 200);
+		continue;
+    	    } else if (cbor_value_get_type(&rit) == CborTextStringType) {
+		size_t len=LOLAN_MAX_PACKET_SIZE;
+		char buf[LOLAN_MAX_PACKET_SIZE];
+		err = cbor_value_copy_text_string(&rit, buf, &len, &rit);
+		if (err) {
+		    DLOG(("\n cbor parse string error"));
+		    return -2;
+		}
+		DLOG((" value:%s ",buf));
+		cbor_encode_int(&map_enc, key);
+		cbor_encode_int(&map_enc, 200);
+		continue;
+    	    } else if (cbor_value_get_type(&rit) == CborIntegerType) {
+		int val;
+		cbor_value_get_int(&rit,&val);
+		DLOG((" value: %d",val));
+		cbor_encode_int(&map_enc, key);
+		cbor_encode_int(&map_enc, 200);
+	    } else {
+		cbor_encode_int(&map_enc, key);
+		cbor_encode_int(&map_enc, 400);
+		DLOG((" value: unsupported type"));
+		// unsupported type
 	    }
 	}
-	cn_cbor_free(cb);
-	cb=NULL;
 
-	if (numberOfKeys > 1) {
-		cn_cbor_mapput_int(cb_result, 0, cn_cbor_int_create(207, &err), &err); // mulitstatus result
+        err = cbor_value_advance_fixed(&rit);
+        if (err) {
+    	    DLOG(("\n cbor parse error"));
+    	    return -2;
+        }
+    }
+
+
+    cbor_encode_int(&map_enc, 0);
+    if (numberOfKeys > 1) {
+	cbor_encode_int(&map_enc, 207);
+    } else {
+	// resource not found
+	if (numberOfKeys==1) {
+	    if (error) {
+		cbor_encode_int(&map_enc, 500);
+	    } else {
+		cbor_encode_int(&map_enc, 200);
+	    }
 	} else {
-		// resource not found
-		if (numberOfKeys==1) {
-		    if (error) {
-			cn_cbor_mapput_int(cb_result, 0, cn_cbor_int_create(500, &err), &err);
-		    } else {
-			cn_cbor_mapput_int(cb_result, 0, cn_cbor_int_create(200, &err), &err);
-		    }
-		} else {
-		    cn_cbor_mapput_int(cb_result, 0, cn_cbor_int_create(404, &err), &err);
-		}
+	    cbor_encode_int(&map_enc, 404);
 	}
+    }
+    cbor_encoder_close_container(&enc, &map_enc);
 
-
-	if (err.err != CN_CBOR_NO_ERROR) {
-		DLOG(("\n cbor error = %d",err.err));
-		return -1;
-	}
-*/
-	reply->packetCounter = lp->packetCounter;
-	reply->packetType = ACK_PACKET;
-	reply->fromId = lp->toId;
-	reply->toId = lp->fromId;
-//	reply->payloadSize = cn_cbor_encoder_write(reply->payload, 0, LOLAN_MAX_PACKET_SIZE, cb_result);
-//	DLOG(("\n Encoded reply to %d bytes",reply->payloadSize));
-	return 1;
+    reply->packetCounter = lp->packetCounter;
+    reply->packetType = ACK_PACKET;
+    reply->fromId = lp->toId;
+    reply->toId = lp->fromId;
+    reply->payloadSize = cbor_encoder_get_buffer_size(&enc,reply->payload);
+    DLOG(("\n Encoded reply to %d bytes",reply->payloadSize));
+    return 1;
 }
 
 

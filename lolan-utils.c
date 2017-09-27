@@ -47,27 +47,28 @@ int8_t getPathFromCbor(uint8_t *p, CborValue *it)
 
     err = cbor_value_enter_container(it, &ait);
     if (err) {
-    return -1;
+	return -1;
     }
 
     while (!cbor_value_at_end(&ait)) {
         if (cnt < LOLAN_REGMAP_DEPTH) {
-        if (cbor_value_get_type(&ait) != CborIntegerType) {
-	return -1;
-        }
-        int val;
-        cbor_value_get_int(&ait,&val);
-        p[cnt] = val;
-        cnt++;
+    	    if (cbor_value_get_type(&ait) != CborIntegerType) {
+		return -1;
+    	    }
+    	    int val;
+    	    cbor_value_get_int(&ait,&val);
+    	    p[cnt] = val;
+    	    cnt++;
+	}
+	err = cbor_value_advance_fixed(&ait);
+	if (err) {
+    	    return -1;
+	}
     }
-    err = cbor_value_advance_fixed(&ait);
-    if (err) {
-        return -1;
-    }
-    }
+
     err = cbor_value_leave_container(it, &ait);
     if (err) {
-    return -1;
+	return -1;
     }
 
     return 1;

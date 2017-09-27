@@ -192,8 +192,8 @@ int main(int argc, char** argv) {
     usleep(10000);
 
     lolan_init(&lctx,1);
-    lolan_regVar(&lctx,nodeName_path,LOLAN_STR,(char *) nodeName); 
-    lolan_regVar(&lctx,testInt_path,LOLAN_INT16,(int16_t *) &testInt);
+    lolan_regVar(&lctx,nodeName_path,LOLAN_STR,(char *) nodeName,sizeof(nodeName)); 
+    lolan_regVar(&lctx,testInt_path,LOLAN_INT,(int16_t *) &testInt,2);
 
     std::thread readerThread = std::thread( [&]{ readTTy(fd); } );
 

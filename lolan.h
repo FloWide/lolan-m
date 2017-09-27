@@ -32,11 +32,9 @@ extern "C" {
 #endif
 
 typedef enum {
-	LOLAN_INT8=1,
-	LOLAN_INT16=2,
-	LOLAN_INT32=3,
-	LOLAN_STR=4,
-	LOLAN_FLOAT=5
+	LOLAN_INT=1,
+	LOLAN_STR=2,
+	LOLAN_FLOAT=3
 } lolan_VarType;
 
 typedef enum {
@@ -77,6 +75,7 @@ typedef struct {
 typedef struct {
 	uint8_t p[LOLAN_REGMAP_DEPTH];
 	uint8_t flags;
+	uint8_t size;
 	void *data;
 } lolan_RegMap;
 
@@ -89,7 +88,7 @@ typedef struct {
 	uint8_t nodeIV[16];
 } lolan_ctx;
 
-int8_t lolan_regVar(lolan_ctx *ctx,const uint8_t *p,lolan_VarType vType, void *ptr);
+int8_t lolan_regVar(lolan_ctx *ctx,const uint8_t *p,lolan_VarType vType, void *ptr, uint8_t size);
 int8_t lolan_rmVar(lolan_ctx *ctx,const uint8_t *p);
 
 int8_t lolan_createPacket(lolan_ctx *ctx, lolan_Packet *lp, uint8_t *buf, int *size, int withCRC);

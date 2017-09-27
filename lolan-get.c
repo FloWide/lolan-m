@@ -105,85 +105,99 @@ uint8_t lolan_processGet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
 	DLOG(("/%d",p[i]));
     }
 
+    int found = 0;
+
     CborEncoder enc;
     cbor_encoder_init(&enc,reply->payload,LOLAN_MAX_PACKET_SIZE,0);
 
-	if (p[0]==0) { // we want the root node
+    if (p[0]==0) { // we want the root node
+	CborEncoder map_enc;
+	err = cbor_encoder_create_map(&enc,&map_enc,CborIndefiniteLength);
+	if (err) {
+	    DLOG(("\n cbor encode error"));
+	    return -1;
+	}
+//		add_regMap(ctx,cb,p,0,&err,LOLAN_REGMAP_RECURSION);
+    } else {
+	uint8_t p_nulls=0;
+	uint8_t *pp = (uint8_t *) &(p[LOLAN_REGMAP_DEPTH-1]);
+	while (*pp==0) {
+	    p_nulls++;
+	    pp--;
+	}
+	for (i=0;i<LOLAN_REGMAP_SIZE;i++) {
+	    if (ctx->regMap[i].p[0] == 0) {
+		continue; // free slot of regmap
+	    }
+	    if (memcmp (p,ctx->regMap[i].p,LOLAN_REGMAP_DEPTH)==0) {
+		if ((ctx->regMap[i].flags & 0x7) == LOLAN_STR) { // important, if full match, we consider there is only one instance in regMap
+		    err = cbor_encode_text_string(&enc, (const char *) ctx->regMap[i].data, strlen((const char *) ctx->regMap[i].data));
+		    if (err) {
+			DLOG(("\n cbor encode error"));
+			    return -1;
+		    }
+		    found = 1;
+		} else if ((ctx->regMap[i].flags & 0x7) == LOLAN_INT) {
+		    if (ctx->regMap[i].size==1) {
+			int8_t *val = ((int8_t *) ctx->regMap[i].data);
+			err = cbor_encode_int (&enc, *val);
+			if (err) {
+			    DLOG(("\n cbor encode error"));
+			    return -1;
+			}
+			found=1;
+		    } else if (ctx->regMap[i].size == 2) {
+			int16_t *val = ((int16_t *) ctx->regMap[i].data);
+			err = cbor_encode_int (&enc, *val);
+			if (err) {
+			    DLOG(("\n cbor encode error"));
+			    return -1;
+			}
+			found=1;
+		    } else if (ctx->regMap[i].size == 4) {
+			int32_t *val = ((int32_t *) ctx->regMap[i].data);
+			err = cbor_encode_int (&enc, *val);
+			if (err) {
+			    DLOG(("\n cbor encode error"));
+			    return -1;
+			}
+			found=1;
+		    }
+		}
+		break;
+	    } else if (memcmp (p,ctx->regMap[i].p,LOLAN_REGMAP_DEPTH-p_nulls)==0) {
 		CborEncoder map_enc;
 		err = cbor_encoder_create_map(&enc,&map_enc,CborIndefiniteLength);
 		if (err) {
 		    DLOG(("\n cbor encode error"));
 		    return -1;
 		}
-//		add_regMap(ctx,cb,p,0,&err,LOLAN_REGMAP_RECURSION);
-	} else {
-		uint8_t p_nulls=0;
-		uint8_t *pp = (uint8_t *) &(p[LOLAN_REGMAP_DEPTH-1]);
-		while (*pp==0) {
-			p_nulls++;
-			pp--;
-		}
-		for (i=0;i<LOLAN_REGMAP_SIZE;i++) {
-			if (ctx->regMap[i].p[0] == 0) {
-				continue; // free slot of regmap
-			}
-			if (memcmp (p,ctx->regMap[i].p,LOLAN_REGMAP_DEPTH)==0) {
-				if ((ctx->regMap[i].flags & 0x7) == LOLAN_STR) { // important, if full match, we consider there is only one instance in regMap
-					err = cbor_encode_text_string(&enc, (const char *) ctx->regMap[i].data, strlen((const char *) ctx->regMap[i].data));
-					if (err) {
-					    DLOG(("\n cbor encode error"));
-					    return -1;
-					}
-				} else if ((ctx->regMap[i].flags & 0x7) == LOLAN_INT8) {
-					int8_t *val = ((int8_t *) ctx->regMap[i].data);
-					err = cbor_encode_int (&enc, *val);
-					if (err) {
-					    DLOG(("\n cbor encode error"));
-					    return -1;
-					}
-				} else if ((ctx->regMap[i].flags & 0x7) == LOLAN_INT16) {
-					int16_t *val = ((int16_t *) ctx->regMap[i].data);
-					err = cbor_encode_int (&enc, *val);
-					if (err) {
-					    DLOG(("\n cbor encode error"));
-					    return -1;
-					}
-				} else if ((ctx->regMap[i].flags & 0x7) == LOLAN_INT32) {
-					int32_t *val = ((int32_t *) ctx->regMap[i].data);
-					err = cbor_encode_int (&enc, *val);
-					if (err) {
-					    DLOG(("\n cbor encode error"));
-					    return -1;
-					}
-				}
-				break;
-			} else if (memcmp (p,ctx->regMap[i].p,LOLAN_REGMAP_DEPTH-p_nulls)==0) {
-				CborEncoder map_enc;
-				err = cbor_encoder_create_map(&enc,&map_enc,CborIndefiniteLength);
-				if (err) {
-				    DLOG(("\n cbor encode error"));
-				    return -1;
-				}
-//				add_regMap(ctx,cb,p,LOLAN_REGMAP_DEPTH-p_nulls,&err,LOLAN_REGMAP_RECURSION);
-				break;
-			}
-		}
+//		add_regMap(ctx,cb,p,LOLAN_REGMAP_DEPTH-p_nulls,&err,LOLAN_REGMAP_RECURSION);
+		break;
+	    }
 	}
+    }
 
-/*
-	if (cb == NULL) {
-		// resource not found
-		cb = cn_cbor_map_create(&err);
-		cn_cbor_mapput_int(cb, 0, cn_cbor_int_create(404, &err), &err);
+    if (found == 0) {
+	// resource not found
+	CborEncoder map_enc;
+	err = cbor_encoder_create_map(&enc,&map_enc,1);
+	if (err) {
+	    DLOG(("\n cbor encode error"));
+	    return -1;
 	}
-*/
-	reply->packetCounter = lp->packetCounter;
-	reply->packetType = ACK_PACKET;
-	reply->fromId = lp->toId;
-	reply->toId = lp->fromId;
-	reply->payloadSize = cbor_encoder_get_buffer_size(&enc,reply->payload);
-	DLOG(("\n Encoded reply to %d bytes",reply->payloadSize));
-	return 1;
+	cbor_encode_int(&map_enc, 0);
+	cbor_encode_int(&map_enc, 404);
+	cbor_encoder_close_container(&enc, &map_enc);
+    }
+
+    reply->packetCounter = lp->packetCounter;
+    reply->packetType = ACK_PACKET;
+    reply->fromId = lp->toId;
+    reply->toId = lp->fromId;
+    reply->payloadSize = cbor_encoder_get_buffer_size(&enc,reply->payload);
+    DLOG(("\n Encoded reply to %d bytes",reply->payloadSize));
+    return 1;
 }
 
 
