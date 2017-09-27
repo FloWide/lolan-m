@@ -8,67 +8,9 @@
 
 #include "lolan_config.h"
 #include "lolan.h"
-#include "cbor.h"
+#include "lolan-utils.h"
 
 #include <stdint.h>
-
-/**************************************************************************//**
- * @brief
- *   helper function for checking a buffer is all zero
- * @param[in] buf
- *   pointer to the buffer
- * @param[in] size
- *   size to check
- ******************************************************************************/
-
-int is_empty(uint8_t *buf, size_t size)
-{
-    static const char zero[LOLAN_REGMAP_DEPTH] = { 0 };
-    return !memcmp(zero, buf, size > LOLAN_REGMAP_DEPTH ? LOLAN_REGMAP_DEPTH : size);
-}
-
-/**************************************************************************//**
- * @brief
- *   helper function for decoding path from array
- * @param[in] p
- *   pointer to path array
- * @param[in] it
- *   pointer to CborValue
- ******************************************************************************/
-
-int getPathFromCbor(uint8_t *p, CborValue *it)
-{
-    int cnt=0;
-    CborValue ait;
-    CborError err;
-
-    err = cbor_value_enter_container(it, &ait);
-    if (err) {
-	return -1;
-    }
-
-    while (!cbor_value_at_end(&ait)) {
-        if (cnt < LOLAN_REGMAP_DEPTH) {
-	    if (cbor_value_get_type(&ait) != CborIntegerType) {
-		return -1;
-	    }
-	    int val;
-	    cbor_value_get_int(&ait,&val);
-	    p[cnt] = val;
-	    cnt++;
-	}
-	err = cbor_value_advance_fixed(&ait);
-	if (err) {
-	    return -1;
-	}
-    }
-    err = cbor_value_leave_container(it, &ait);
-    if (err) {
-	return -1;
-    }
-
-    return 1;
-}
 
 
 /**************************************************************************//**
@@ -150,83 +92,17 @@ int getPathFromCbor(uint8_t *p, CborValue *it)
 uint8_t lolan_processGet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
 {
     int i=0;
+    CborError err;
 
     uint8_t p[LOLAN_REGMAP_DEPTH];
-    CborParser parser;
-    CborValue it;
-    CborError err = cbor_parser_init(lp->payload, lp->payloadSize, 0, &parser, &it);
-
-    if (err) {
-	DLOG(("\n cbor parse error"));
-	return -2;
-    }
-    
-    if (cbor_value_get_type(&it) != CborMapType) {
-	DLOG(("\n cbor parse error: map not found"));
-	return -2;
-    }
-
-    CborValue rit;
-    err = cbor_value_enter_container(&it, &rit);
-    if (err) {
-	DLOG(("\n cbor parse error"));
-	return -2;
-    }
-
-    while (!cbor_value_at_end(&rit)) {
-	    int key = -1;
-	    if (cbor_value_get_type(&rit) != CborIntegerType) {
-		DLOG(("\n cbor parse error: key has to be integer"));
-	    }
-	    cbor_value_get_int(&rit,&key);
-
-	    err = cbor_value_advance_fixed(&rit);
-	    if (err) {
-		DLOG(("\n cbor parse error"));
-		return -2;
-	    }
-	    if (cbor_value_at_end(&rit)) {
-		DLOG(("\n cbor parse error"));
-		return -2;
-	    }
-	    if (key==0) {
-		if (getPathFromCbor(p, &rit)!=1) {
-		    return -2;
-		}
-		continue;
-	    } else {
-		if (cbor_value_get_type(&rit) == CborByteStringType) {
-		    size_t len=LOLAN_MAX_PACKET_SIZE;
-        	    uint8_t buf[LOLAN_MAX_PACKET_SIZE];
-        	    err = cbor_value_copy_byte_string(&rit, buf, &len, &rit);
-		    if (err) {
-			DLOG(("\n cbor parse string error"));
-			return -2;
-		    }
-        	    continue;
-		} else if (cbor_value_get_type(&rit) == CborTextStringType) {
-		    size_t len=LOLAN_MAX_PACKET_SIZE;
-        	    char buf[LOLAN_MAX_PACKET_SIZE];
-        	    err = cbor_value_copy_text_string(&rit, buf, &len, &rit);
-		    if (err) {
-			DLOG(("\n cbor parse string error"));
-			return -2;
-		    }
-        	    continue;
-		}
-    	    }
-
-	    err = cbor_value_advance_fixed(&rit);
-	    if (err) {
-		DLOG(("\n cbor parse error"));
-		return -2;
-	    }
+    if (getPathFromPayload(lp, p) != 1) {
+	DLOG(("\n path not found in packet"));
     }
 
     DLOG(("\n GET: "));
     for (i=0;i<3;i++) {
-	    if (p[i]==0) { break; }
-	    DLOG(("/%d",p[i]));
+	if (p[i]==0) { if (i==0) { DLOG(("/")); } break; }
+	DLOG(("/%d",p[i]));
     }
 
     CborEncoder enc;

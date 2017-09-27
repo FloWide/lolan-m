@@ -8,12 +8,11 @@
 
 #include "lolan_config.h"
 #include "lolan.h"
-
+#include "lolan-utils.h"
 
 #include <stdint.h>
 #include <stdio.h>
 
-uint16_t CRC_calc(uint8_t *start, uint8_t size);
 
 int8_t lolan_regVar(lolan_ctx *ctx,const uint8_t *p,lolan_VarType vType, void *ptr)
 {
@@ -78,25 +77,6 @@ void lolan_init(lolan_ctx *ctx,uint16_t lolan_address)
 //	memcpy(ctx->networkKey,networkKey,16);
 //	memcpy(ctx->nodeIV,nodeIV,16);
 }
-
-uint16_t CRC_calc(uint8_t *val, uint8_t size)
-{
-    uint16_t crc;
-    uint16_t q;
-    uint8_t c;
-    crc = 0;
-    int i;
-    for (i = 0; i < size; i++)
-    {
-        c = val[i];
-        q = (crc ^ c) & 0x0f;
-        crc = (crc >> 4) ^ (q * 0x1081);
-        q = (crc ^ (c >> 4)) & 0xf;
-        crc = (crc >> 4) ^ (q * 0x1081);
-    }
-    return (uint8_t) crc << 8 | (uint8_t) (crc >> 8);
-}
-
 
 /**************************************************************************//**
  * @brief
@@ -210,4 +190,5 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Pac
 
 	return 1; // successful parsing
 }
+
 

@@ -10,17 +10,22 @@
 #include <stdint.h>
 #include "lolan_config.h"
 
-
 #ifndef LOLAN_H_
 #define LOLAN_H_
 
-#define LOLAN_REGMAP_TYPE_MASK				0x0F
+#define LOLAN_REGMAP_TYPE_MASK			0x0F
 
 #define LOLAN_REGMAP_LOCAL_UPDATE_BIT		0x80
 #define LOLAN_REGMAP_TRAP_REQUEST_BIT		0x40
 #define LOLAN_REGMAP_GET_REQUEST_BIT		0x20
 #define LOLAN_REGMAP_REMOTE_UPDATE_BIT		0x10
 
+#define LOLAN_PACKET(packet) \
+	     lolan_Packet packet; \
+	     memset(&packet,0,sizeof(lolan_Packet)); \
+		uint8_t (packet ## _lolan_pl_buf)[LOLAN_MAX_PACKET_SIZE]; \
+		memset((packet ## _lolan_pl_buf), 0, LOLAN_MAX_PACKET_SIZE); \
+		packet.payload = (packet ## _lolan_pl_buf);
 
 #if defined (__cplusplus)
 extern "C" {

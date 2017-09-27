@@ -8,6 +8,7 @@
 
 #include "lolan_config.h"
 #include "lolan.h"
+#include "lolan-utils.h"
 
 
 #include <stdint.h>
@@ -76,7 +77,22 @@ int8_t lolan_setRegFromCbor(lolan_ctx *ctx,const uint8_t *p,cn_cbor *val)
 
 uint8_t lolan_processSet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
 {
-	int i=0;
+    int i=0;
+
+    uint8_t p[LOLAN_REGMAP_DEPTH];
+    if (getPathFromPayload(lp, p) != 1) {
+	DLOG(("\n path not found in packet"));
+    }
+
+    DLOG(("\n SET: "));
+    for (i=0;i<3;i++) {
+        if (p[i]==0) { if (i==0) { DLOG(("/")); } break; }
+        DLOG(("/%d",p[i]));
+    }
+
+    CborEncoder enc;
+    cbor_encoder_init(&enc,reply->payload,LOLAN_MAX_PACKET_SIZE,0);
+
 /*
 	cn_cbor *cb;
 	cn_cbor *cb_path_array;
