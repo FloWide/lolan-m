@@ -10,59 +10,65 @@
 #include "lolan.h"
 #include "lolan-utils.h"
 
-
 #include <stdint.h>
-/*
+
 int8_t lolan_setIntRegFromCbor(lolan_ctx *ctx,const uint8_t *p, int val)
 {
-	int8_t found=0;
-	int i;
-	for (i=0;i<LOLAN_REGMAP_SIZE;i++) {
-		if (ctx->regMap[i].p[0] == 0) {
-		    continue; // free slot of regmap
-		}
-		if (memcmp (p,ctx->regMap[i].p,LOLAN_REGMAP_DEPTH)==0) {
-		    if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_INT8) {
-			int8_t *sv;
-			sv = ctx->regMap[i].data;
-			*sv = val
-		    } else if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_INT16) {
-			int16_t *sv;
-			sv = ctx->regMap[i].data;
-			*sv = val
-		    }
-		    found = 1;
-		    break;
-		}
+    int8_t found=0;
+    int i;
+    for (i=0;i<LOLAN_REGMAP_SIZE;i++) {
+	if (ctx->regMap[i].p[0] == 0) {
+	    continue; // free slot of regmap
 	}
-	return found;
+	if (memcmp (p,ctx->regMap[i].p,LOLAN_REGMAP_DEPTH)==0) {
+	    if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_INT) {
+		if (ctx->regMap[i].size == 1) {
+		    int8_t *sv;
+		    sv = ctx->regMap[i].data;
+		    *sv = val;
+		    ctx->regMap[i].flags |= LOLAN_REGMAP_REMOTE_UPDATE_BIT;
+		    found = 1;
+		} else if (ctx->regMap[i].size == 2) {
+		    int8_t *sv;
+		    sv = ctx->regMap[i].data;
+		    *sv = val;
+		    ctx->regMap[i].flags |= LOLAN_REGMAP_REMOTE_UPDATE_BIT;
+		    found = 1;
+		} else if (ctx->regMap[i].size == 4) {
+		    int8_t *sv;
+		    sv = ctx->regMap[i].data;
+		    *sv = val;
+		    ctx->regMap[i].flags |= LOLAN_REGMAP_REMOTE_UPDATE_BIT;
+		    found = 1;
+		}
+	    }
+	    break;
+	}
+    }
+    return found;
 }
 
 int8_t lolan_setStrRegFromCbor(lolan_ctx *ctx,const uint8_t *p, const char *str)
 {
-	int8_t found=0;
-	int i;
-	for (i=0;i<LOLAN_REGMAP_SIZE;i++) {
-		if (ctx->regMap[i].p[0] == 0) {
-		    continue; // free slot of regmap
-		}
-		if (memcmp (p,ctx->regMap[i].p,LOLAN_REGMAP_DEPTH)==0) {
-		    if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_INT8) {
-			int8_t *sv;
-			sv = ctx->regMap[i].data;
-			*sv = val
-		    } else if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_INT16) {
-			int16_t *sv;
-			sv = ctx->regMap[i].data;
-			*sv = val
-		    }
-		    found = 1;
-		    break;
-		}
+    int8_t found=0;
+    int i;
+    for (i=0;i<LOLAN_REGMAP_SIZE;i++) {
+	if (ctx->regMap[i].p[0] == 0) {
+	    continue; // free slot of regmap
 	}
-	return found;
+	if (memcmp (p,ctx->regMap[i].p,LOLAN_REGMAP_DEPTH)==0) {
+	    if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_STR) {
+		char *sv;
+		sv = ctx->regMap[i].data;
+		strncpy(sv,str,ctx->regMap[i].size);
+		ctx->regMap[i].flags |= LOLAN_REGMAP_REMOTE_UPDATE_BIT;
+		found = 1;
+	    }
+	    break;
+	}
+    }
+    return found;
 }
-*/
 
 /**************************************************************************//**
  * @brief
@@ -95,6 +101,10 @@ uint8_t lolan_processSet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
         DLOG(("/%d",p[i]));
     }
 
+    if (i>(LOLAN_REGMAP_DEPTH-1)) {
+	DLOG(("\n path too deep"));
+	return -2;
+    }
 
     CborError err;
     uint8_t numberOfKeys=0;
@@ -176,8 +186,14 @@ uint8_t lolan_processSet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
 		    return -2;
 		}
 		DLOG((" value:%s ",buf));
+		p[i]=key;
 		cbor_encode_int(&map_enc, key);
-		cbor_encode_int(&map_enc, 200);
+		if (lolan_setStrRegFromCbor(ctx,p,buf)) {
+		    cbor_encode_int(&map_enc, 200);
+		} else {
+		    cbor_encode_int(&map_enc, 404);
+		}
+		numberOfKeys++;
 		continue;
     	    } else if (cbor_value_get_type(&rit) == CborTextStringType) {
 		size_t len=LOLAN_MAX_PACKET_SIZE;
@@ -188,19 +204,32 @@ uint8_t lolan_processSet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
 		    return -2;
 		}
 		DLOG((" value:%s ",buf));
+		p[i]=key;
 		cbor_encode_int(&map_enc, key);
-		cbor_encode_int(&map_enc, 200);
+		if (lolan_setStrRegFromCbor(ctx,p,buf)) {
+		    cbor_encode_int(&map_enc, 200);
+		} else {
+		    cbor_encode_int(&map_enc, 404);
+		}
+		numberOfKeys++;
 		continue;
     	    } else if (cbor_value_get_type(&rit) == CborIntegerType) {
 		int val;
 		cbor_value_get_int(&rit,&val);
 		DLOG((" value: %d",val));
+		p[i]=key;
 		cbor_encode_int(&map_enc, key);
-		cbor_encode_int(&map_enc, 200);
+		if (lolan_setIntRegFromCbor(ctx,p,val)) {
+		    cbor_encode_int(&map_enc, 200);
+		} else {
+		    cbor_encode_int(&map_enc, 404);
+		}
+		numberOfKeys++;
 	    } else {
 		cbor_encode_int(&map_enc, key);
 		cbor_encode_int(&map_enc, 400);
 		DLOG((" value: unsupported type"));
+		numberOfKeys++;
 		// unsupported type
 	    }
 	}

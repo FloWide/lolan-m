@@ -44,7 +44,7 @@ const uint8_t testInt_path[LOLAN_REGMAP_DEPTH] = {1,2,0};
 std::mutex dequeMutex;
 std::deque<std::vector<uint8_t>> lpQueue;
 
-char * nodeName = "LoLaN test node";
+char nodeName[40] = "LoLaN test node";
 uint16_t testInt = 11;
 
 void sendToTTyBin(int fd,uint8_t *bp, int s) {
@@ -192,7 +192,7 @@ int main(int argc, char** argv) {
     usleep(10000);
 
     lolan_init(&lctx,1);
-    lolan_regVar(&lctx,nodeName_path,LOLAN_STR,(char *) nodeName,sizeof(nodeName)); 
+    lolan_regVar(&lctx,nodeName_path,LOLAN_STR,nodeName,40);
     lolan_regVar(&lctx,testInt_path,LOLAN_INT,(int16_t *) &testInt,2);
 
     std::thread readerThread = std::thread( [&]{ readTTy(fd); } );
@@ -242,6 +242,10 @@ int main(int argc, char** argv) {
 			    llSendPacket(fd,&replyPacket);
 			}
 			free(replyPacket.payload);
+
+			if (lolan_regVarUpdated(&lctx,&testInt,1)) {
+			    std::cout << "testInt updated value=" << testInt << "\n";
+			}
 		    }
 		}
 	    }

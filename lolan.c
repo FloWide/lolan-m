@@ -30,19 +30,43 @@ int8_t lolan_regVar(lolan_ctx *ctx,const uint8_t *p,lolan_VarType vType, void *p
     return -1;
 }
 
-int8_t lolan_rmVar(lolan_ctx *ctx,const uint8_t *p)
+int8_t lolan_regVarUpdated(lolan_ctx *ctx,void *ptr,int clearFlag)
 {
     int i;
     for (i=0; i<LOLAN_REGMAP_SIZE;i++) {
-	if (memcmp (p,ctx->regMap[i].p,LOLAN_REGMAP_DEPTH)==0) {
-	    memset(ctx->regMap[i].p,0,LOLAN_REGMAP_DEPTH);
-	    ctx->regMap[i].flags = 0;
+	if (ctx->regMap[i].p[0] != 0) {
+	    if (ctx->regMap[i].data == ptr) {
+		if ((ctx->regMap[i].flags & LOLAN_REGMAP_REMOTE_UPDATE_BIT)!=0) {
+		    if (clearFlag) {
+			ctx->regMap[i].flags &= ~(LOLAN_REGMAP_REMOTE_UPDATE_BIT);
+		    }
+		    return 1;
+		} else {
+		    return 0;
+		}
+	    }
 	}
     }
     return -1;
 }
 
-int8_t lolan_setFlags(lolan_ctx *ctx,void *ptr, uint8_t flag)
+
+int8_t lolan_rmVar(lolan_ctx *ctx,void *ptr)
+{
+    int i;
+    for (i=0; i<LOLAN_REGMAP_SIZE;i++) {
+	if (ctx->regMap[i].p[0] != 0) {
+	    if (ctx->regMap[i].data == ptr) {
+		memset(ctx->regMap[i].p,0,LOLAN_REGMAP_DEPTH);
+		ctx->regMap[i].flags = 0;
+	    }
+	    return 1;
+	}
+    }
+    return -1;
+}
+
+int8_t lolan_setFlag(lolan_ctx *ctx,void *ptr, uint8_t flag)
 {
     int i;
     for (i=0; i<LOLAN_REGMAP_SIZE;i++) {
@@ -56,7 +80,7 @@ int8_t lolan_setFlags(lolan_ctx *ctx,void *ptr, uint8_t flag)
     return -1;
 }
 
-int8_t lolan_clearFlags(lolan_ctx *ctx,void *ptr, uint8_t flag)
+int8_t lolan_clearFlag(lolan_ctx *ctx,void *ptr, uint8_t flag)
 {
     int i;
     for (i=0; i<LOLAN_REGMAP_SIZE;i++) {

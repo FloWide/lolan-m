@@ -89,7 +89,8 @@ typedef struct {
 } lolan_ctx;
 
 int8_t lolan_regVar(lolan_ctx *ctx,const uint8_t *p,lolan_VarType vType, void *ptr, uint8_t size);
-int8_t lolan_rmVar(lolan_ctx *ctx,const uint8_t *p);
+int8_t lolan_rmVar(lolan_ctx *ctx,void *ptr);
+int8_t lolan_regVarUpdated(lolan_ctx *ctx,void *ptr,int clearFlag);
 
 int8_t lolan_createPacket(lolan_ctx *ctx, lolan_Packet *lp, uint8_t *buf, int *size, int withCRC);
 

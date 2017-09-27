@@ -219,11 +219,11 @@ uint8_t lolan_processGet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
  *****************************************************************************/
 int8_t lolan_setupGet(lolan_ctx *ctx,lolan_Packet *lp, uint16_t toId, const uint8_t *p)
 {
-	lp->packetCounter = ctx->packetCounter++;
-	lp->packetType = LOLAN_GET;
-	lp->fromId = ctx->myAddress;
-	lp->toId = toId;
+    lp->packetCounter = ctx->packetCounter++;
+    lp->packetType = LOLAN_GET;
+    lp->fromId = ctx->myAddress;
+    lp->toId = toId;
 //	lp->payloadSize = cn_cbor_encoder_write(lp->payload, 0, LOLAN_MAX_PACKET_SIZE, cb);
 //	DLOG(("\n Encoded reply to %d bytes",lp->payloadSize));
-	return 1;
+    return 1;
 }
