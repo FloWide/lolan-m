@@ -80,11 +80,6 @@ void lolan_init(lolan_ctx *ctx,uint16_t lolan_address)
 //	memcpy(ctx->nodeIV,nodeIV,16);
 }
 
-void lolan_setReplyDeviceCallback(lolan_ctx *ctx,void (*callback)(uint8_t *buf,uint8_t size))
-{
-	ctx->replyDeviceCallbackFunc = callback;
-}
-
 uint16_t CRC_calc(uint8_t *val, uint8_t size)
 {
     uint16_t crc;
@@ -106,53 +101,51 @@ uint16_t CRC_calc(uint8_t *val, uint8_t size)
 
 /**************************************************************************//**
  * @brief
- *   send packet with the packet transmitting callback
+ *   create the packet with CRC in the provided buffer
  * @param[in] ctx
  *   context for lolan packet processing
  * @param[in] lp
  *   pointer to lolan Packet structure
+ * @param[out] buf
+ *   buffer to fill
+ * @param[out] size
+ *   size of the created packet
+ * @param[in] withCRC
+ *   append software calculated CRC to the packet
  *****************************************************************************/
-void lolan_sendPacket(lolan_ctx *ctx, lolan_Packet *lp)
+int8_t lolan_createPacket(lolan_ctx *ctx, lolan_Packet *lp, uint8_t *buf, int *size, int withCRC)
 {
-	uint8_t txp[LOLAN_MAX_PACKET_SIZE];
-	memset(txp,0,LOLAN_MAX_PACKET_SIZE);
+	buf[0] = lp->packetType;
+	if (lp->securityEnabled) { buf[0]|=0x08; }
+	if (lp->framePending) { buf[0]|=0x10; }
+	if (lp->ackRequired) { buf[0]|=0x20;}
 
-	txp[0] = lp->packetType;
-
-	if (lp->securityEnabled) { txp[0]|=0x08; }
-	if (lp->framePending) { txp[0]|=0x10; }
-	if (lp->ackRequired) { txp[0]|=0x20;}
-
-	txp[1]=0x74; // 802.15.4 protocol version=3
+	buf[1]=0x74; // 802.15.4 protocol version=3
 	if (lp->routingRequested) {
-	    txp[1] |= 0x80;
+	    buf[1] |= 0x80;
 	}
 	if (lp->packetRouted) {
-	    txp[1] |= 0x08;
+	    buf[1] |= 0x08;
 	}
 
-	txp[2] = lp->packetCounter;
+	buf[2] = lp->packetCounter;
 
-	txp[3] = (lp->fromId)&0xFF;
-	txp[4] = (lp->fromId>>8)&0xFF;
-	txp[5] = (lp->toId)&0xFF;
-	txp[6] = (lp->toId>>8)&0xFF;
+	buf[3] = (lp->fromId)&0xFF;
+	buf[4] = (lp->fromId>>8)&0xFF;
+	buf[5] = (lp->toId)&0xFF;
+	buf[6] = (lp->toId>>8)&0xFF;
 
-	memcpy(&(txp[7]),lp->payload,lp->payloadSize);
-	uint16_t crc16 = CRC_calc(txp,7+lp->payloadSize);
-
-	txp[7+lp->payloadSize] = (crc16>>8)&0xFF;
-	txp[7+lp->payloadSize+1] = crc16&0xFF;
-
-	DLOG(("\n Sending packet with size=%d \n",7+lp->payloadSize+2));
-	int i;
-	for (i=0;i<(7+lp->payloadSize+2);i+=4) {
-		DLOG((" %02x %02x %02x %02x",txp[i],txp[i+1],txp[i+2],txp[i+3]));
+	memcpy(&(buf[7]),lp->payload,lp->payloadSize);
+	if (withCRC) {
+	    uint16_t crc16 = CRC_calc(buf,7+lp->payloadSize);
+	    buf[7+lp->payloadSize] = (crc16>>8)&0xFF;
+	    buf[7+lp->payloadSize+1] = crc16&0xFF;
+	    *size = lp->payloadSize+9;
+	} else {
+	    *size = lp->payloadSize+7;
 	}
 
-	if (ctx->replyDeviceCallbackFunc != NULL) {
-		ctx->replyDeviceCallbackFunc(txp,7+lp->payloadSize+2);
-	}
+	return 1;
 }
 
 /**************************************************************************//**
