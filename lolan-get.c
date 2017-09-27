@@ -89,7 +89,7 @@
  *     -2 : GET packet parse error
  *****************************************************************************/
 
-uint8_t lolan_processGet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
+int8_t lolan_processGet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
 {
     int i=0;
     CborError err;

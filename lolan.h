@@ -17,7 +17,7 @@
 
 #define LOLAN_REGMAP_LOCAL_UPDATE_BIT		0x80
 #define LOLAN_REGMAP_TRAP_REQUEST_BIT		0x40
-#define LOLAN_REGMAP_GET_REQUEST_BIT		0x20
+#define LOLAN_REGMAP_INFORM_REQUEST_BIT		0x20
 #define LOLAN_REGMAP_REMOTE_UPDATE_BIT		0x10
 
 #define LOLAN_PACKET(packet) \
@@ -91,16 +91,19 @@ typedef struct {
 int8_t lolan_regVar(lolan_ctx *ctx,const uint8_t *p,lolan_VarType vType, void *ptr, uint8_t size);
 int8_t lolan_rmVar(lolan_ctx *ctx,void *ptr);
 int8_t lolan_regVarUpdated(lolan_ctx *ctx,void *ptr,int clearFlag);
+int8_t lolan_setFlag(lolan_ctx *ctx,void *ptr, uint8_t flag);
+int8_t lolan_clearFlag(lolan_ctx *ctx,void *ptr, uint8_t flag);
 
 int8_t lolan_createPacket(lolan_ctx *ctx, lolan_Packet *lp, uint8_t *buf, int *size, int withCRC);
 
 int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Packet *lp);
 void lolan_init(lolan_ctx *ctx,uint16_t lolan_address);
 
-uint8_t lolan_processGet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply);
+int8_t lolan_processGet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply);
 int8_t lolan_setupGet(lolan_ctx *ctx,lolan_Packet *lp, uint16_t toId, const uint8_t *p);
 
-uint8_t lolan_processSet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply);
+int8_t lolan_processSet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply);
+int8_t lolan_processInform(lolan_ctx *ctx, lolan_Packet *reply);
 
 
 #if defined (__cplusplus)

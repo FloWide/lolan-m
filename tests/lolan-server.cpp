@@ -22,6 +22,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <time.h>
 
 #include <errno.h>
 
@@ -113,6 +114,11 @@ void llSendPacket(int fd,lolan_Packet *lp)
     sendToTTyBin(fd,(uint8_t *) &(slp.encodeBuffer[0]),slp.encodeBuffer.size());
 }
 
+static long get_ms(void) {
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    return (long)ts.tv_sec * 1000 + ts.tv_nsec/1000000;
+}
 
 void readTTy(int fd)
 {
@@ -194,10 +200,13 @@ int main(int argc, char** argv) {
     lolan_init(&lctx,1);
     lolan_regVar(&lctx,nodeName_path,LOLAN_STR,nodeName,40);
     lolan_regVar(&lctx,testInt_path,LOLAN_INT,(int16_t *) &testInt,2);
+    lolan_setFlag(&lctx,&testInt,LOLAN_REGMAP_INFORM_REQUEST_BIT);
 
     std::thread readerThread = std::thread( [&]{ readTTy(fd); } );
 
     bool sleep=false;
+
+    long last_ms = get_ms();
 
     while (quit==false) {
 	std::vector<uint8_t> lpbuff;
@@ -210,6 +219,22 @@ int main(int argc, char** argv) {
 	    } else {
 		sleep = true;
 	    }
+	}
+
+	if ((last_ms + 2000) < get_ms()) {
+	    std::cout << "\nsending inform packet";
+	    testInt++;
+	    lolan_setFlag(&lctx,&testInt,LOLAN_REGMAP_LOCAL_UPDATE_BIT);
+
+	    lolan_Packet informPacket;
+	    memset(&informPacket,0,sizeof(lolan_Packet));
+	    informPacket.payload = (uint8_t *) malloc(LOLAN_MAX_PACKET_SIZE);
+	    if (lolan_processInform(&lctx,&informPacket)) {
+		llSendPacket(fd,&informPacket);
+	    }
+	    free(informPacket.payload);
+	
+	    last_ms = get_ms();
 	}
 
 	if (sleep) {

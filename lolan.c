@@ -59,8 +59,8 @@ int8_t lolan_rmVar(lolan_ctx *ctx,void *ptr)
 	    if (ctx->regMap[i].data == ptr) {
 		memset(ctx->regMap[i].p,0,LOLAN_REGMAP_DEPTH);
 		ctx->regMap[i].flags = 0;
+		return 1;
 	    }
-	    return 1;
 	}
     }
     return -1;
@@ -73,8 +73,8 @@ int8_t lolan_setFlag(lolan_ctx *ctx,void *ptr, uint8_t flag)
 	if (ctx->regMap[i].p[0] != 0) {
 	    if (ctx->regMap[i].data == ptr) {
 		ctx->regMap[i].flags |= flag;
+		return 1;
 	    }
-	    return 1;
 	}
     }
     return -1;
@@ -87,8 +87,8 @@ int8_t lolan_clearFlag(lolan_ctx *ctx,void *ptr, uint8_t flag)
 	if (ctx->regMap[i].p[0] != 0) {
 	    if (ctx->regMap[i].data == ptr) {
 		ctx->regMap[i].flags &= ~(flag);
+		return 1;
 	    }
-	    return 1;
 	}
     }
     return -1;

@@ -86,7 +86,7 @@ int8_t lolan_setStrRegFromCbor(lolan_ctx *ctx,const uint8_t *p, const char *str)
  *     -2 : SET packet parse error
  *****************************************************************************/
 
-uint8_t lolan_processSet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
+int8_t lolan_processSet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
 {
     int i=0;
 
