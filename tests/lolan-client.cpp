@@ -161,9 +161,12 @@ int main(int argc, char** argv) {
 
     int toAddress = std::stol(std::string(argv[2]));
     std::string cmd = std::string(argv[3]);
-    
-    std::string cbor = std::string(argv[4]);
-//    std::cout << "cbor=" << cbor << "\n" << std::flush;
+
+    std::string cbor;
+    if ((cmd=="GET")||(cmd=="SET")||(cmd=="INFORM")) {
+	cbor = std::string(argv[4]);
+    }
+
     struct termios newtio;
     memset(&newtio, 0, sizeof(newtio));
     struct termios oldtio;
@@ -209,12 +212,14 @@ int main(int argc, char** argv) {
 	lp.packetType = LOLAN_INFORM;
     }
 
-    nlohmann::json j = nlohmann::json::parse(cbor);
-    std::vector<std::uint8_t> v_cbor = nlohmann::json::to_cbor(j);
+    if ((lp.packetType == LOLAN_GET)||(lp.packetType == LOLAN_SET)||(lp.packetType == LOLAN_INFORM)) {
+	nlohmann::json j = nlohmann::json::parse(cbor);
+	std::vector<std::uint8_t> v_cbor = nlohmann::json::to_cbor(j);
 
-    lp.payload = &(v_cbor[0]);
-    lp.payloadSize = v_cbor.size();
-    llSendPacket(fd,&lp);
+	lp.payload = &(v_cbor[0]);
+	lp.payloadSize = v_cbor.size();
+	llSendPacket(fd,&lp);
+    }
 
     usleep(100000);
 
@@ -258,6 +263,13 @@ int main(int argc, char** argv) {
 		    nlohmann::json j_from_cbor = nlohmann::json::from_cbor(v_cbor);
 		    std::cout << " cbor="<<j_from_cbor << std::flush;
 		    quit=true;
+		} else if (rlp.packetType == LOLAN_INFORM) {
+		    std::cout << "\n inform caught from " << rlp.fromId << std::flush;
+		    std::vector<uint8_t> v_cbor;
+		    v_cbor.resize(rlp.payloadSize);
+		    v_cbor.assign(rlp.payload,rlp.payload+rlp.payloadSize);
+		    nlohmann::json j_from_cbor = nlohmann::json::from_cbor(v_cbor);
+		    std::cout << " cbor="<<j_from_cbor << std::flush;
 		}
 	    }
 	    free(rlp.payload);
