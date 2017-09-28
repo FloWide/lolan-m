@@ -29,13 +29,13 @@ int8_t lolan_setIntRegFromCbor(lolan_ctx *ctx,const uint8_t *p, int val)
 		    ctx->regMap[i].flags |= LOLAN_REGMAP_REMOTE_UPDATE_BIT;
 		    found = 1;
 		} else if (ctx->regMap[i].size == 2) {
-		    int8_t *sv;
+		    int16_t *sv;
 		    sv = ctx->regMap[i].data;
 		    *sv = val;
 		    ctx->regMap[i].flags |= LOLAN_REGMAP_REMOTE_UPDATE_BIT;
 		    found = 1;
 		} else if (ctx->regMap[i].size == 4) {
-		    int8_t *sv;
+		    int32_t *sv;
 		    sv = ctx->regMap[i].data;
 		    *sv = val;
 		    ctx->regMap[i].flags |= LOLAN_REGMAP_REMOTE_UPDATE_BIT;
