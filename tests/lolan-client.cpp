@@ -263,7 +263,7 @@ int main(int argc, char** argv) {
 		    nlohmann::json j_from_cbor = nlohmann::json::from_cbor(v_cbor);
 		    std::cout << " cbor="<<j_from_cbor << std::flush;
 		    quit=true;
-		} else if (rlp.packetType == LOLAN_INFORM) {
+		} else if ((cmd=="INFORM")&&(rlp.packetType == LOLAN_INFORM)) {
 		    std::cout << "\n inform caught from " << rlp.fromId << std::flush;
 		    std::vector<uint8_t> v_cbor;
 		    v_cbor.resize(rlp.payloadSize);
