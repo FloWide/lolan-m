@@ -261,7 +261,7 @@ int8_t lolan_processSet(lolan_ctx *ctx,lolan_Packet *lp,lolan_Packet *reply)
 
     reply->packetCounter = lp->packetCounter;
     reply->packetType = ACK_PACKET;
-    reply->fromId = lp->toId;
+    reply->fromId = ctx->myAddress;
     reply->toId = lp->fromId;
     reply->payloadSize = cbor_encoder_get_buffer_size(&enc,reply->payload);
     DLOG(("\n Encoded reply to %d bytes",reply->payloadSize));
