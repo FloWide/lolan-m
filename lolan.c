@@ -155,7 +155,7 @@ int8_t lolan_createPacket(lolan_ctx *ctx, lolan_Packet *lp, uint8_t *buf, int *s
 /**************************************************************************//**
  * @brief
  *   parse incoming packet to a lolan packet structure
- *   IMPORTANT: lp->payload hat to point to a memory space enough for LOLAN_MAX_PACKET_SIZE
+ *   IMPORTANT: lp->payload has to point to a memory space enough for LOLAN_MAX_PACKET_SIZE
  * @param[in] ctx
  *   context for lolan packet processsing
  * @param[in] rxp
@@ -172,9 +172,11 @@ int8_t lolan_createPacket(lolan_ctx *ctx, lolan_Packet *lp, uint8_t *buf, int *s
  *     -2 : auth error / crc error
  *     -3 : process error
  *****************************************************************************/
-int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Packet *lp)
+int8_t lolan_parsePacket(lolan_ctx *ctx, uint8_t *rxp, uint8_t rxp_len, lolan_Packet *lp)
 {
-    if (((rxp[1]>>4)&0x3) != 3) { // Checking 802.15.4 FRAME version
+    if (rxp_len < 9) return -1;  // packet too short
+
+    if (((rxp[1]>>4)&0x03) != 3) { // Checking 802.15.4 FRAME version
 	return 0;
     }
 
@@ -196,7 +198,7 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Pac
     lp->toId =  rxp[5] | (rxp[6]<<8);
 
     if (lp->securityEnabled) {
-//TODO: implement security
+      /* TODO: implement security */
     } else {
 	uint16_t crc16 = CRC_calc(rxp,rxp_len);
 	if (crc16 != 0) {
@@ -211,5 +213,4 @@ int8_t lolan_parsePacket(lolan_ctx *ctx,uint8_t *rxp, uint8_t rxp_len, lolan_Pac
     DLOG(("\n LoLaN packet t:%d s:%d ps:%d from:%d to:%d enc:%d",lp->packetType,rxp_len,lp->payloadSize,lp->fromId,lp->toId,lp->securityEnabled));
     return 1; // successful parsing
 }
-
 
