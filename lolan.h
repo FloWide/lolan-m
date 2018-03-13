@@ -20,6 +20,8 @@
 #define LOLAN_REGMAP_INFORM_REQUEST_BIT		0x20
 #define LOLAN_REGMAP_REMOTE_UPDATE_BIT		0x10
 
+#define LOLAN_BROADCAST_ADDRESS  0xFFFF
+
 #define LOLAN_PACKET(packet) \
 	     lolan_Packet packet; \
 	     memset(&packet,0,sizeof(lolan_Packet)); \
@@ -50,7 +52,8 @@ typedef enum {
 
 typedef enum {
 	TIMING_PACKET=1,
-	RESEND_REQUEST_PACKET=2
+	RESEND_REQUEST_PACKET=2,
+	CLKSYNC_PACKET=3
 } lolan_ControlPacketType;
 
 // LoLaN packet
