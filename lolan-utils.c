@@ -334,7 +334,7 @@ int8_t getZeroKeyEntryFromPayload(const lolan_Packet *lp, uint8_t *path, uint16_
   err = cbor_value_enter_container(&it, &rit);   // enter root map
   if (err != CborNoError) return LOLAN_RETVAL_CBORERROR;
 
-  /* find key=0 */
+  /* find key = 0 */
   while (!cbor_value_at_end(&rit)) {    // until entries are available in the root map
     if (cbor_value_get_type(&rit) != CborIntegerType) {  // check key of a key-data pair (must be integer)
       DLOG(("\n LoLaN CBOR packet error: key has to be integer"));
@@ -370,43 +370,140 @@ int8_t getZeroKeyEntryFromPayload(const lolan_Packet *lp, uint8_t *path, uint16_
     if (err != CborNoError) return LOLAN_RETVAL_CBORERROR;
   }
 
-  return LOLAN_RETVAL_NO;  // at this point neither LoLaN variable path nor error found
+  return LOLAN_RETVAL_NO;  // at this point no zero key entry was found
 } /* getZeroKeyEntryFromPayload */
 
 /**************************************************************************//**
  * @brief
- *   Create a simple integer key-value pair with or without a container.
- * @param[in] encoder
- *   Pointer to a CBOR stream.
- * @param[in] key
- *   Key for the key-value pair.
- * @param[in] value
- *   Value for the key-value pair.
- * @param[in] container
- *   If true, the key-value pair will be nested in a container (map).
+ *   Get the next LoLaN variable data from CBOR.
+ * @details
+ *   This procedure parses the next data from a CBOR stream, and returns it
+ *   with its length and type. Only the types that may represent a LoLaN
+ *   variable are allowed. The CBOR iterator will be advanced in all cases.
+ * @param[in] it
+ *   Pointer to CborValue (iterator).
+ * @param[out] data
+ *   Address of the buffer which will receive the data.
+ * @param[in] data_max
+ *   The maximum allowable data length (to avoid buffer overflow). Set this
+ *   parameter to 0 if no limitation is required. Otherwise, it must be >=8
+ *   (not to break integer and floating-point data).
+ * @param[out] data_len
+ *   Pointer to a number that receives the actual data length. If this
+ *   output is higher than data_max, it means that the end of the data
+ *   was discarded.
+ * @param[out] type
+ *   The type of the data got. It can be one of the lolan_VarType constants.
  * @return
- *   The return value is LOLAN_RETVAL_YES if the action was successful,
- *   otherwise LOLAN_RETVAL_CBORERROR.
- ******************************************************************************/
-int8_t createCborUintDataSimple(CborEncoder *encoder, uint64_t key, uint64_t value, bool container)
+ *   LOLAN_RETVAL_YES: Data got.
+ *   LOLAN_RETVAL_GENERROR: An error has occurred.
+ *   LOLAN_RETVAL_CBORERROR: A CBOR-related error has occurred.
+ *****************************************************************************/
+int8_t lolanGetDataFromCbor(CborValue *it, uint8_t *data, uint8_t data_max,
+           uint8_t *data_len, uint8_t *type)
 {
-  CborError err;
-  CborEncoder map_enc;
+  CborType ctype;
+  CborError cerr;
 
-  if (container) {
-    err = cbor_encoder_create_map(encoder, &map_enc, 1);   // create map for 1 key-data pair
-    if (err != CborNoError) return LOLAN_RETVAL_CBORERROR;
+  /* error checking */
+  if (data_max != 0 && data_max < 8) return LOLAN_RETVAL_GENERROR;  // (see description of data_max)
+
+  /* get data */
+  ctype = cbor_value_get_type(it);   // get CBOR entry type
+  switch (ctype) {
+    case CborIntegerType:   // integer
+      if (cbor_value_is_unsigned_integer(it)) {   // non-negative integer
+        uint64_t val;
+        cbor_value_get_uint64(it, &val);  // decode value
+        cerr = cbor_value_advance_fixed(it);   // advance CBOR iterator
+        if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+        /* determine minimum representation width and store value */
+        if (val > UINT32_MAX) {   // 64-bit
+          *data_len = 8;
+          *((uint64_t*) data) = val;
+        } else if (val > UINT16_MAX) {  // 32-bit
+          *data_len = 4;
+          *((uint32_t*) data) = val;
+        } else if (val > UINT8_MAX) {  // 16-bit
+          *data_len = 2;
+          *((uint16_t*) data) = val;
+        } else {   // 8-bit
+          *data_len = 1;
+          *data = val;
+        }
+        *type = LOLAN_UINT;
+      } else {   // negative integer
+        int64_t val;
+        cbor_value_get_int64(it, &val);   // decode value
+        cerr = cbor_value_advance_fixed(it);   // advance CBOR iterator
+        if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+        /* determine minimum representation width and store value */
+        if (val > INT32_MAX || val < INT32_MIN) {   // 64-bit
+          *data_len = 8;
+          *((int64_t*) data) = val;
+        } else if (val > INT16_MAX || val < INT16_MIN) {  // 32-bit
+          *data_len = 4;
+          *((int32_t*) data) = val;
+        } else if (val > INT8_MAX || val < INT8_MIN) {  // 16-bit
+          *data_len = 2;
+          *((int16_t*) data) = val;
+        } else {   // 8-bit
+          *data_len = 1;
+          *((int8_t*) data) = val;
+        }
+        *type = LOLAN_INT;
+      }
+      break;
+    case CborByteStringType:   // byte string
+      {
+        size_t len;
+        len = data_max == 0 ? 255 : data_max;    // 255 = "unlimited size"
+        cbor_value_copy_byte_string(it, data, &len, it);   // get string (the CBOR iterator is also advanced)
+        *data_len = len;
+        *type = LOLAN_STR;
+      }
+      break;
+    case CborTextStringType:   // text string
+      {
+        size_t len;
+        len = data_max == 0 ? 255 : data_max;    // 255 = "unlimited size"
+        cbor_value_copy_text_string(it, data, &len, it);   // get string (the CBOR iterator is also advanced)
+        *data_len = len;
+        *type = LOLAN_STR;
+      }
+      break;
+    case CborFloatType:   // 32-bit floating-point
+      {
+        float val;
+        cbor_value_get_float(it, &val);   // get value
+        cerr = cbor_value_advance_fixed(it);   // advance CBOR iterator
+        if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+        *((float*) data) = val;   // decode and store value
+        *data_len = 4;
+        *type = LOLAN_FLOAT;
+      }
+      break;
+    case CborDoubleType:
+      {
+        double val;
+        cbor_value_get_double(it, &val);   // get value
+        cerr = cbor_value_advance_fixed(it);   // advance CBOR iterator
+        if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+        *((double*) data) = val;   // decode and store value
+        *data_len = 8;
+        *type = LOLAN_FLOAT;
+      }
+      break;
+    case CborInvalidType:   // invalid CBOR entry
+      return LOLAN_RETVAL_CBORERROR;
+      break;
+    default:   // type not allowed in LoLaN
+      return LOLAN_RETVAL_GENERROR;
+      break;
   }
-  err = cbor_encode_uint(container ? &map_enc : encoder, key);   // encode key
-  if (err != CborNoError) return LOLAN_RETVAL_CBORERROR;
-  err = cbor_encode_uint(container ? &map_enc : encoder, value);   // encode value
-  if (err != CborNoError) return LOLAN_RETVAL_CBORERROR;
-  if (container) {
-    err = cbor_encoder_close_container(encoder, &map_enc);   // close the map
-    if (err != CborNoError) return LOLAN_RETVAL_CBORERROR;
-  }
+
   return LOLAN_RETVAL_YES;
-} /* createCborUintDataSimple */
+} /* lolanGetDataFromCbor */
 
 /**************************************************************************//**
  * @brief
@@ -797,7 +894,8 @@ int8_t lolanVarBunchUpdateFromCbor(lolan_ctx *ctx, const lolan_Packet *lp,
   uint8_t path[LOLAN_REGMAP_DEPTH];
   uint8_t i, alevel;
   int key;
-  uint8_t err, exterr;
+  int8_t err;
+  uint8_t exterr;
 
   CborParser parser;
   CborValue root_it, it[LOLAN_REGMAP_DEPTH];
@@ -834,7 +932,7 @@ int8_t lolanVarBunchUpdateFromCbor(lolan_ctx *ctx, const lolan_Packet *lp,
     cbor_value_get_int(&it[alevel], &key);   // get key
     cerr = cbor_value_advance_fixed(&it[alevel]);   // advance iterator to data
     if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
-    if (cbor_value_at_end(&it[alevel])) {   // unexpected end of root map (no data for key)
+    if (cbor_value_at_end(&it[alevel])) {   // unexpected end of map (no data for key)
       DLOG(("\n LoLaN CBOR packet error: key must be followed by data"));
       return LOLAN_RETVAL_GENERROR;
     }
@@ -886,6 +984,138 @@ int8_t lolanVarBunchUpdateFromCbor(lolan_ctx *ctx, const lolan_Packet *lp,
 
 /**************************************************************************//**
  * @brief
+ *   Create a simple integer key-value pair with or without a container.
+ * @param[in] encoder
+ *   Pointer to a CBOR stream.
+ * @param[in] key
+ *   Key for the key-value pair.
+ * @param[in] value
+ *   Value for the key-value pair.
+ * @param[in] container
+ *   If true, the key-value pair will be nested in a container (map).
+ * @return
+ *   The return value is LOLAN_RETVAL_YES if the action was successful,
+ *   otherwise LOLAN_RETVAL_CBORERROR.
+ ******************************************************************************/
+int8_t createCborUintDataSimple(CborEncoder *encoder, uint64_t key, uint64_t value, bool container)
+{
+  CborError err;
+  CborEncoder map_enc;
+
+  if (container) {
+    err = cbor_encoder_create_map(encoder, &map_enc, 1);   // create map for 1 key-data pair
+    if (err != CborNoError) return LOLAN_RETVAL_CBORERROR;
+  }
+  err = cbor_encode_uint(container ? &map_enc : encoder, key);   // encode key
+  if (err != CborNoError) return LOLAN_RETVAL_CBORERROR;
+  err = cbor_encode_uint(container ? &map_enc : encoder, value);   // encode value
+  if (err != CborNoError) return LOLAN_RETVAL_CBORERROR;
+  if (container) {
+    err = cbor_encoder_close_container(encoder, &map_enc);   // close the map
+    if (err != CborNoError) return LOLAN_RETVAL_CBORERROR;
+  }
+  return LOLAN_RETVAL_YES;
+} /* createCborUintDataSimple */
+
+/**************************************************************************//**
+ * @brief
+ *   Encode LoLaN variable data to CBOR.
+ * @param[in] data
+ *   The LoLaN variable data to encode.
+ * @param[in] data_len
+ *   Length of the data specified.
+ * @param[in] type
+ *   The type of the LoLaN variable data.
+ * @param[in] encoder
+ *   Pointer to a CBOR stream.
+ * @return
+ *   LOLAN_RETVAL_YES:        The variable data is encoded successfully.
+ *   LOLAN_RETVAL_GENERROR:   A general error has occurred.
+ *   LOLAN_RETVAL_CBORERROR:  A CBOR error has occurred.
+ *   LOLAN_RETVAL_MEMERROR:   CBOR out of memory error.
+ ******************************************************************************/
+int8_t lolanVarDataToCbor(uint8_t *data, uint8_t data_len, lolan_VarType type,
+           CborEncoder *encoder)
+{
+  CborError cerr;
+
+  switch (type) {
+    case LOLAN_INT:   // signed integer
+      switch (data_len) {
+        case 1:
+          cerr = cbor_encode_int(encoder, *((int8_t*) (data)) );
+          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
+          break;
+        case 2:
+          cerr = cbor_encode_int(encoder, *((int16_t*) (data)) );
+          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
+          break;
+        case 4:
+          cerr = cbor_encode_int(encoder, *((int32_t*) (data)) );
+          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
+          break;
+        case 8:
+          cerr = cbor_encode_int(encoder, *((int64_t*) (data)) );
+          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
+          break;
+        default:   // unsupported integer length
+          return LOLAN_RETVAL_GENERROR;
+          break;
+      }
+      break;
+    case LOLAN_UINT:   // unsigned integer
+      switch (data_len) {
+        case 1:
+          cerr = cbor_encode_int(encoder, *((uint8_t*) (data)) );
+          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
+          break;
+        case 2:
+          cerr = cbor_encode_int(encoder, *((uint16_t*) (data)) );
+          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
+          break;
+        case 4:
+          cerr = cbor_encode_int(encoder, *((uint32_t*) (data)) );
+          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
+          break;
+        case 8:
+          cerr = cbor_encode_int(encoder, *((uint64_t*) (data)) );
+          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
+          break;
+        default:   // unsupported integer length
+          return LOLAN_RETVAL_GENERROR;
+          break;
+      }
+      break;
+    case LOLAN_FLOAT:   // floating point
+      switch (data_len) {
+        case 4:
+          cerr = cbor_encode_floating_point(encoder, CborFloatType, data);
+          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
+          break;
+        case 8:
+          cerr = cbor_encode_floating_point(encoder, CborDoubleType, data);
+          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
+          break;
+        default:   // unsupported floating point type
+          return LOLAN_RETVAL_GENERROR;
+          break;
+      }
+      break;
+    case LOLAN_STR:   // string
+      cerr = cbor_encode_text_string(encoder, (char*) data, strlen((char*) data));
+      /* XXX: byte string would be more suitable (we do not want to handle UTF-8), text string type is for JSON compatibility */
+      if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
+      break;
+    default:   // unsupported variable type
+      return LOLAN_RETVAL_GENERROR;
+      break;
+  }
+
+  return LOLAN_RETVAL_YES;  // success
+} /* lolanVarDataToCbor */
+
+/**************************************************************************//**
+ * @brief
  *   Encode a single LoLaN variable to CBOR.
  * @param[in] ctx
  *   Pointer to the LoLaN context variable.
@@ -908,7 +1138,6 @@ int8_t lolanVarToCbor(lolan_ctx *ctx, const uint8_t *path, uint8_t index, CborEn
 {
   uint8_t i;
   bool found;
-  CborError cerr;
 
   if (path) {   // path is assigned
     /* search for a variable with the specified path */
@@ -928,80 +1157,9 @@ int8_t lolanVarToCbor(lolan_ctx *ctx, const uint8_t *path, uint8_t index, CborEn
   }
 
   /* encode variable */
-  switch (ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) {
-    case LOLAN_INT:   // signed integer
-      switch (ctx->regMap[i].size) {
-        case 1:
-          cerr = cbor_encode_int(encoder, *((int8_t*) (ctx->regMap[i].data)) );
-          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
-          break;
-        case 2:
-          cerr = cbor_encode_int(encoder, *((int16_t*) (ctx->regMap[i].data)) );
-          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
-          break;
-        case 4:
-          cerr = cbor_encode_int(encoder, *((int32_t*) (ctx->regMap[i].data)) );
-          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
-          break;
-        case 8:
-          cerr = cbor_encode_int(encoder, *((int64_t*) (ctx->regMap[i].data)) );
-          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
-          break;
-        default:   // unsupported integer length
-          return LOLAN_RETVAL_GENERROR;
-          break;
-      }
-      break;
-    case LOLAN_UINT:   // unsigned integer
-      switch (ctx->regMap[i].size) {
-        case 1:
-          cerr = cbor_encode_int(encoder, *((uint8_t*) (ctx->regMap[i].data)) );
-          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
-          break;
-        case 2:
-          cerr = cbor_encode_int(encoder, *((uint16_t*) (ctx->regMap[i].data)) );
-          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
-          break;
-        case 4:
-          cerr = cbor_encode_int(encoder, *((uint32_t*) (ctx->regMap[i].data)) );
-          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
-          break;
-        case 8:
-          cerr = cbor_encode_int(encoder, *((uint64_t*) (ctx->regMap[i].data)) );
-          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
-          break;
-        default:   // unsupported integer length
-          return LOLAN_RETVAL_GENERROR;
-          break;
-      }
-      break;
-    case LOLAN_FLOAT:   // floating point
-      switch (ctx->regMap[i].size) {
-        case 4:
-          cerr = cbor_encode_floating_point(encoder, CborFloatType, ctx->regMap[i].data);
-          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
-          break;
-        case 8:
-          cerr = cbor_encode_floating_point(encoder, CborDoubleType, ctx->regMap[i].data);
-          if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
-          break;
-        default:   // unsupported floating point type
-          return LOLAN_RETVAL_GENERROR;
-          break;
-      }
-      break;
-    case LOLAN_STR:   // string
-      cerr = cbor_encode_text_string(encoder, (char*) ctx->regMap[i].data, strlen((char*) ctx->regMap[i].data));
-      /* XXX: byte string would be more suitable (we do not want to handle UTF-8), text string type is for JSON compatibility */
-      if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
-      break;
-    default:   // unsupported variable type
-      return LOLAN_RETVAL_GENERROR;
-      break;
-  }
-
-  return LOLAN_RETVAL_YES;  // success
-} /* lolanVarToCbor */
+  return lolanVarDataToCbor(ctx->regMap[i].data, ctx->regMap[i].size,
+                     ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK, encoder);
+  } /* lolanVarToCbor */
 
 /**************************************************************************//**
  * @brief

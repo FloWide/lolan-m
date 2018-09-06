@@ -246,8 +246,6 @@ int8_t lolan_clearFlag(lolan_ctx *ctx, const void *ptr, uint16_t flags)
  * @brief
  *   Output the binary representation of a LoLaN packet to the specified
  *   buffer.
- * @param[in] ctx
- *   Pointer to the LoLaN context variable.
  * @param[in] lp
  *   Pointer to the source LoLaN packet structure.
  * @param[out] buf
@@ -265,7 +263,7 @@ int8_t lolan_clearFlag(lolan_ctx *ctx, const void *ptr, uint16_t flags)
  *   LOLAN_RETVAL_YES:       LoLaN binary packet is created.
  *   LOLAN_RETVAL_GENERROR:  The packet size would exceed maxSize.
  *****************************************************************************/
-int8_t lolan_createPacket(lolan_ctx *ctx, const lolan_Packet *lp, uint8_t *buf,
+int8_t lolan_createPacket(const lolan_Packet *lp, uint8_t *buf,
                           uint32_t maxSize, uint32_t *outputSize, bool withCRC)
 {
   uint32_t size;
@@ -317,8 +315,6 @@ int8_t lolan_createPacket(lolan_ctx *ctx, const lolan_Packet *lp, uint8_t *buf,
  * @note
  *   IMPORTANT: lp->payload has to point to a buffer with a minimum size
  *   of LOLAN_PACKET_MAX_PAYLOAD_SIZE!
- * @param[in] ctx
- *   Pointer to the LoLaN context variable.
  * @param[in] pak
  *   The starting address of the input data (packet).
  * @param[in] pak_len
@@ -330,7 +326,7 @@ int8_t lolan_createPacket(lolan_ctx *ctx, const lolan_Packet *lp, uint8_t *buf,
  *   LOLAN_RETVAL_NO:        Not a LoLaN packet.
  *   LOLAN_RETVAL_GENERROR:  An error has occurred. (e.g. CRC error)
  *****************************************************************************/
-int8_t lolan_parsePacket(lolan_ctx *ctx, const uint8_t *pak, uint32_t pak_len, lolan_Packet *lp)
+int8_t lolan_parsePacket(const uint8_t *pak, uint32_t pak_len, lolan_Packet *lp)
 {
   /* error check */
   if (pak_len < 9)  // packet is too short

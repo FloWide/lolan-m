@@ -111,16 +111,27 @@ extern int8_t lolan_rmVar(lolan_ctx *ctx, const void *ptr);
 extern int8_t lolan_setFlag(lolan_ctx *ctx, const void *ptr, uint16_t flags);
 extern int8_t lolan_clearFlag(lolan_ctx *ctx, const void *ptr, uint16_t flags);
 
-extern int8_t lolan_createPacket(lolan_ctx *ctx, const lolan_Packet *lp, uint8_t *buf,
+extern int8_t lolan_createPacket(const lolan_Packet *lp, uint8_t *buf,
                                  uint32_t maxSize, uint32_t *outputSize, bool withCRC);
-extern int8_t lolan_parsePacket(lolan_ctx *ctx, const uint8_t *pak, uint32_t pak_len, lolan_Packet *lp);
+extern int8_t lolan_parsePacket(const uint8_t *pak, uint32_t pak_len, lolan_Packet *lp);
 
 extern int8_t lolan_processGet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply);
 extern int8_t lolan_processSet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply);
+
+extern int8_t lolan_createGet(lolan_ctx *ctx, lolan_Packet *pak, uint8_t *path);
 extern int8_t lolan_createInform(lolan_ctx *ctx, lolan_Packet *reply, bool multi);
+
+extern int8_t lolan_simpleCreateSet(lolan_ctx *ctx, lolan_Packet *pak, const uint8_t *path,
+              uint8_t *data, uint8_t data_len, lolan_VarType type);
+extern int8_t lolan_simpleProcessAck(lolan_Packet *pak, uint8_t *data, uint8_t data_max,
+              uint8_t *data_len, uint8_t *type, bool *zerokey);
+extern int8_t lolan_simpleExtractFromInform(lolan_Packet *pak, const uint8_t *path, uint8_t *data,
+                uint8_t data_max, uint8_t *data_len, uint8_t *type);
+
 
 #if defined (__cplusplus)
 }
 #endif
+
 
 #endif /* LOLAN_H_ */

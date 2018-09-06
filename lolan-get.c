@@ -36,6 +36,7 @@
  *   If an exact path was specified, the reply will be only 1 CBOR
  *   item containing the requested value unless setting the
  *   LOLAN_FORCE_GET_VERBOSE_REPLY switch.
+ *   (No root map is created in this case!)
  *
  *   CBOR item #1:  value (any type)
  *
@@ -286,4 +287,71 @@ int8_t lolan_processGet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply)
 } /* lolan_processGet */
 
 
-// TODO: lolan_createGet(), lolan_processGetReply()
+/**************************************************************************//**
+ * @brief
+ *   Create a LoLaN GET request.
+ * @details
+ *   This procedure creates a GET request in the specified LoLaN packet
+ *   structure. The addressee of the request should be configured with
+ *   the same parameters as the local settings (LOLAN_REGMAP_DEPTH,
+ *   LOLAN_MAX_PACKET_SIZE).
+ * @note
+ *   In the LoLaN packet structure the payload parameter should be
+ *   assigned to a buffer with a minimum length of
+ *   LOLAN_PACKET_MAX_PAYLOAD_SIZE!
+ * @param[in] ctx
+ *   Pointer to the LoLaN context variable. If NULL, the packetCounter
+ *   and fromId fields will not be modified in pak.
+ * @param[out] pak
+ *   Pointer to the LoLaN packet structure which will contain the GET
+ *   request.
+ * @param[in] path
+ *   Address of the uint8_t array containing the (sub)path of the
+ *   remote LoLaN variable(s) to get.
+ * @return
+ *   LOLAN_RETVAL_YES: Request is successfully created.
+ *   LOLAN_RETVAL_GENERROR: An error has occurred (e.g. formally invalid
+ *     path).
+ *   LOLAN_RETVAL_CBORERROR: A CBOR-related error has occurred.
+ *****************************************************************************/
+int8_t lolan_createGet(lolan_ctx *ctx, lolan_Packet *pak, uint8_t *path)
+{
+  CborEncoder enc, map_enc, array_enc;
+  CborError cerr;
+  uint8_t i, defLvl;
+
+  /* check path */
+  if (!isPathValid(path)) return LOLAN_RETVAL_GENERROR;    // invalid
+  defLvl = pathDefinitionLevel(NULL, path, NULL, false);   // get definition level
+
+  /* encode GET request */
+  cbor_encoder_init(&enc, pak->payload, LOLAN_PACKET_MAX_PAYLOAD_SIZE, 0);  // initialize CBOR encoder for the request
+  cerr = cbor_encoder_create_map(&enc, &map_enc, 1);   // create root map (1 entry)
+  if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+  cerr = cbor_encode_uint(&map_enc, 0);   // encode key=0
+  if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+  cerr = cbor_encoder_create_array(&map_enc, &array_enc, defLvl);   // create array to encode (sub)path
+  if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+  for (i = 0; i < defLvl; i++) {   // encode path elements (only up to definition level to reduce size)
+    cerr = cbor_encode_uint(&array_enc, path[i]);   // encode path element
+    if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+  }
+  cerr = cbor_encoder_close_container(&map_enc, &array_enc);   // close array
+  if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+  cerr = cbor_encoder_close_container(&enc, &map_enc);   // close root map
+  if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+
+  /* fill the LoLaN packet structure */
+  pak->packetType = LOLAN_GET;
+  pak->payloadSize = cbor_encoder_get_buffer_size(&enc, pak->payload);   // get the CBOR data size
+  if (ctx != NULL) {  // if context is specified
+    pak->fromId = ctx->myAddress;
+    pak->packetCounter = ctx->packetCounter++;   // the packet counter of the context is copied (and incremented)
+  }
+  DLOG(("\n Encoded GET request to %d bytes", pak->payloadSize));
+
+  return LOLAN_RETVAL_YES;
+} /* lolan_createGet */
+
+
+// TODO: lolan_processGetReply()

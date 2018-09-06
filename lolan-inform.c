@@ -88,14 +88,14 @@
  *   LOLAN_RETVAL_MEMERROR will be returned. In this case the subroutine
  *   should be called again disabling multiple reporting.
  * @note
- *   In the reply packet structure the payload parameter should be
+ *   In the output packet structure the payload parameter should be
  *   assigned to a buffer with a minimum length of
  *   LOLAN_PACKET_MAX_PAYLOAD_SIZE!
  * @param[in] ctx
  *   Pointer to the LoLaN context variable.
- * @param[out] reply
- *   Pointer to the LoLaN packet structure in which the reply will be
- *   generated.
+ * @param[out] pak
+ *   Pointer to the output LoLaN packet structure in which the INFORM
+ *   will be generated.
  * @param[in] multi
  *   Set this parameter to TRUE to allow multiple reporting. If FALSE,
  *   only a single variable will be reported in an INFORM packet.
@@ -110,7 +110,7 @@
  *    LOLAN_RETVAL_MEMERROR: CBOR out of memory error (too much data is
  *      requested in one step). Disable multiple reporting and try again!
  ******************************************************************************/
-int8_t lolan_createInform(lolan_ctx *ctx, lolan_Packet *reply, bool multi) {
+int8_t lolan_createInform(lolan_ctx *ctx, lolan_Packet *pak, bool multi) {
   uint8_t i;
   uint8_t count, defLvl, bpath[LOLAN_REGMAP_DEPTH-1];
   bool dlbpsame;
@@ -129,7 +129,7 @@ int8_t lolan_createInform(lolan_ctx *ctx, lolan_Packet *reply, bool multi) {
   for (i = 0; i < LOLAN_REGMAP_SIZE; i++)
     ctx->regMap[i].flags &= ~(LOLAN_REGMAP_AUX_BIT);
 
-  cbor_encoder_init(&enc, reply->payload, LOLAN_PACKET_MAX_PAYLOAD_SIZE, 0);  // initialize CBOR encoder for the reply
+  cbor_encoder_init(&enc, pak->payload, LOLAN_PACKET_MAX_PAYLOAD_SIZE, 0);  // initialize CBOR encoder for the pak
 
   if (!dlbpsame || LOLAN_FORCE_NEW_STYLE_INFORM) {   // new style inform
     cerr = cbor_encoder_create_map(&enc, &map_enc, CborIndefiniteLength);   // create root map
@@ -232,13 +232,13 @@ int8_t lolan_createInform(lolan_ctx *ctx, lolan_Packet *reply, bool multi) {
       ctx->regMap[i].flags &= ~(LOLAN_REGMAP_LOCAL_UPDATE_BIT);   // reset local update flag
 
   /* fill the reply packet structure */
-  reply->packetCounter = ctx->packetCounter++;
-  reply->packetType = LOLAN_INFORM;
-  reply->fromId = ctx->myAddress;
-  reply->toId = LOLAN_BROADCAST_ADDRESS;
-  reply->ackRequired = false;
-  reply->payloadSize = cbor_encoder_get_buffer_size(&enc, reply->payload);
-  DLOG(("\n Encoded INFORM to %d bytes", reply->payloadSize));
+  pak->packetCounter = ctx->packetCounter++;   // the packet counter of the context is copied (and incremented)
+  pak->packetType = LOLAN_INFORM;
+  pak->fromId = ctx->myAddress;
+  pak->toId = LOLAN_BROADCAST_ADDRESS;
+  pak->ackRequired = false;
+  pak->payloadSize = cbor_encoder_get_buffer_size(&enc, pak->payload);   // get the CBOR data size
+  DLOG(("\n Encoded INFORM to %d bytes", pak->payloadSize));
 
   return LOLAN_RETVAL_YES;
 } /* lolan_createInform */
