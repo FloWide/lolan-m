@@ -1066,19 +1066,19 @@ int8_t lolanVarDataToCbor(uint8_t *data, uint8_t data_len, lolan_VarType type,
     case LOLAN_UINT:   // unsigned integer
       switch (data_len) {
         case 1:
-          cerr = cbor_encode_int(encoder, *((uint8_t*) (data)) );
+          cerr = cbor_encode_uint(encoder, *((uint8_t*) (data)) );
           if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
           break;
         case 2:
-          cerr = cbor_encode_int(encoder, *((uint16_t*) (data)) );
+          cerr = cbor_encode_uint(encoder, *((uint16_t*) (data)) );
           if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
           break;
         case 4:
-          cerr = cbor_encode_int(encoder, *((uint32_t*) (data)) );
+          cerr = cbor_encode_uint(encoder, *((uint32_t*) (data)) );
           if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
           break;
         case 8:
-          cerr = cbor_encode_int(encoder, *((uint64_t*) (data)) );
+          cerr = cbor_encode_uint(encoder, *((uint64_t*) (data)) );
           if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
           break;
         default:   // unsupported integer length
