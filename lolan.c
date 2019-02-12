@@ -19,15 +19,31 @@
  *   Initialize the specified LoLaN context variable.
  * @param[in] ctx
  *   Pointer to a LoLaN context variable.
- * @param[in] lolan_address
- *   The 16-bit LoLaN address for this context.
+ * @param[in] initial_address
+ *   The initial 16-bit LoLaN address for this context.
  *****************************************************************************/
-void lolan_init(lolan_ctx *ctx, uint16_t lolan_address)
+void lolan_init(lolan_ctx *ctx, uint16_t initial_address)
 {
   memset(ctx, 0, sizeof(lolan_ctx));
-  ctx->myAddress = lolan_address;
+  ctx->myAddress = initial_address;
   ctx->packetCounter = 1;
 } /* lolan_init */
+
+/**************************************************************************//**
+ * @brief
+ *   Set new address for the LoLaN context.
+ * @note
+ *   The internal packet counter will be also reset.
+ * @param[in] ctx
+ *   Pointer to a LoLaN context variable.
+ * @param[in] new_address
+ *   The new 16-bit LoLaN address for this context.
+ *****************************************************************************/
+void lolan_setAddress(lolan_ctx *ctx, uint16_t new_address)
+{
+  ctx->myAddress = new_address;
+  ctx->packetCounter = 1;
+} /* lolan_setAddress */
 
 /**************************************************************************//**
  * @brief

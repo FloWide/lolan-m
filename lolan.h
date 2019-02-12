@@ -102,7 +102,8 @@ typedef struct {
 } lolan_ctx;
 
 
-extern void lolan_init(lolan_ctx *ctx, uint16_t lolan_address);
+extern void lolan_init(lolan_ctx *ctx, uint16_t initial_address);
+extern void lolan_setAddress(lolan_ctx *ctx, uint16_t new_address);
 
 extern int8_t lolan_regVar(lolan_ctx *ctx, const uint8_t *path, lolan_VarType vType, void *ptr,
                            uint8_t size, bool readOnly);
