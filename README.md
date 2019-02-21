@@ -1,11 +1,14 @@
 #  Low Latency Network Protocol (LoLaN)
 
 LoLaN is a stateless protocol, designed to communicate over a wireless UWB network with start topology (however other mediums are targeted also). The design goals are to minimize packet header overhead and the redundancy between network layers.
-LoLaN is based on 802.15.4 frame format (however uses the reserved frame version 3, that makes it incopatible with the standard) and relays on packet size information from the PHY layer.
+LoLaN is based on IEEE 802.15.4 frame format (however uses the reserved frame version 3, that makes it incopatible with the standard) and relays on packet size information from the PHY layer.
 
 As most of CPU-s implementing LoLaN will be little endian, thus LoLaN itself is little endian. Eg, the first byte of a 16 bit number is the least significant byte.
 
-## Packet with Encryption
+## Packet types
+
+### Packet with encryption
+This feature is not implemented yet, the following structure is just a proposal for the implementation.<br/>
 
 <table>
   <tr>
@@ -27,31 +30,31 @@ As most of CPU-s implementing LoLaN will be little endian, thus LoLaN itself is 
   <tr>
     <td>0</td>
     <td>0</td>
-    <td colspan="16">Attributes</td>
-    <td colspan="8">Packet counter (8 bits)</td>
-    <td colspan="8">FromAddress (lower 8 bits)</td>
+    <td colspan="16">attributes</td>
+    <td colspan="8">packet counter (8 bits)</td>
+    <td colspan="8">source address (lower 8 bits)</td>
   </tr>
   <tr>
     <td>4</td>
     <td>32</td>
-    <td colspan="8">FromAddress (upper 8 bits)</td>
-    <td colspan="16">ToAddress (16 bits)</td>
-    <td colspan="8">TimeStamp (0-8 bits)</td>
+    <td colspan="8">source address (upper 8 bits)</td>
+    <td colspan="16">destination address (16 bits)</td>
+    <td colspan="8">timestamp (0-8 bits)</td>
   </tr>
   <tr>
     <td>8</td>
     <td>64</td>
-    <td colspan="32">TimeStamp (8-40 bits)</td>
+    <td colspan="32">timestamp (8-40 bits)</td>
   </tr>
   <tr>
     <td>12</td>
     <td>96</td>
-    <td colspan="32">Payload ...</td>
+    <td colspan="32">payload ...</td>
   </tr>
   <tr>
     <td>(N-1)*4</td>
     <td>(N-1)*32</td>
-    <td colspan="8">... Payload</td>
+    <td colspan="8">... payload</td>
     <td colspan="16">HMAC (0-7) bits</td>
   </tr>
   <tr>
@@ -62,7 +65,7 @@ As most of CPU-s implementing LoLaN will be little endian, thus LoLaN itself is 
 </table>
 
 
-## Packet without Encryption
+### Packet without encryption
 
 <table>
   <tr>
@@ -84,129 +87,110 @@ As most of CPU-s implementing LoLaN will be little endian, thus LoLaN itself is 
   <tr>
     <td>0</td>
     <td>0</td>
-    <td colspan="16">Attributes</td>
-    <td colspan="8">Packet counter (8 bits)</td>
-    <td colspan="8">FromAddress (lower 8 bits)</td>
+    <td colspan="16">attributes</td>
+    <td colspan="8">packet counter (8 bits)</td>
+    <td colspan="8">source address (lower 8 bits)</td>
   </tr>
   <tr>
     <td>4</td>
     <td>32</td>
-		<td colspan="8">FromAddress (upper 8 bits)</td>
-    <td colspan="16">ToAddress (16 bits)</td>
-    <td colspan="8">Payload</td>
+		<td colspan="8">source address (upper 8 bits)</td>
+    <td colspan="16">destination address (16 bits)</td>
+    <td colspan="8">payload ...</td>
   </tr>
   <tr>
     <td>8</td>
     <td>64</td>
-    <td colspan="32">Payload ...</td>
+    <td colspan="32">... payload ...</td>
   </tr>
   <tr>
     <td>N*4</td>
     <td>N*32</td>
-    <td colspan="16">... Payload</td>
-    <td colspan="16">CRC16</td>
+    <td colspan="16">... payload</td>
+    <td colspan="16">CRC-16</td>
   </tr>
 </table>
 
-### Attributes (802.15.4 frame control extended)
+## Packet header *attributes* part
+Note: this is intended as the extended version of IEEE 802.15.4 frame control.
 
+### *bits 0..2*: packet type
 
-#### __bit0-2__:  Packet type
-
-LoLaN (TRAP/INFORM/GET/SET)payloads are CBOR (http://cbor.me/) serialized data.
+LoLaN (TRAP/INFORM/GET/SET) payloads are CBOR type serialized data.
 
 Accessing this data is REST like.
-The key-value pairs can be converted to json with mapping keys, and path numbers to string based on device types.
-0 key value is a special value, that indicates different things based on data type.
+The key-value pairs can be converted to *json* with mapping keys, and path numbers to string based on device types.
+The zero (0) key entry is a special value, that indicates different things based on packet type.
 
-##### 0: 802.15.4 BEACON
+#### *packet type = 0*: 802.15.4 BEACON
+not used
 
-Not used
-
-##### 1: 802.15.4 DATA
-
+#### *packet type = 1*: 802.15.4 DATA
 OTHER protocol data, not LoLaN
 
-##### 2: 802.15.4 ACK
+#### *packet type = 2*: 802.15.4 ACK
+Payload differs on what was ACK-ed, ACK has to be transmitted in the current timeslot. LoLaN related ACK types: <br/>
 
-IMPORTANT: ACK packet number is the same as the packet ACK-ed.
+**INFROM**: no ACK for INFORM packets<br/>
+**GET**: see *lolan-get.c* for reply formats<br/>
+**SET**: see *lolan-set.c* for reply formats
 
-Payload differs on what was ACK-ed, ACK has to be transmitted in the current timeslot.
+*Note*: the ACK request bits are currently ignored, every GET and SET request will be replied.<br/>
+**Important**: the packet counter value of the ACK packet must be the same as of the packet ACK-ed.
 
-INFROM: no payload
+#### *packet type = 3*: 802.15.4 MAC
+not used
 
-GET: 0 key indicates result code (integer according to HTTP status codes) other key-value pairs contains data requested
+#### *packet type = 4*: LoLaN INFORM
+These packets are sent to provide information about the variables of the sender device without any requests from the other devices. Mainly sent by slave devices and intended as status updates for the server. INFORM packets do not need to be replied (ACK-ed).
 
-SET: 0 key indicates result code (integer according to HTTP status codes), other key-value pairs contain results for each independent key-value updates
+Format of INFORM packets: see *lolan-inform.c* 
 
-##### 3: 802.15.4 MAC
+#### *packet type = 5*: LoLaN GET
+Values of remote variables can be obtained with GET packets sent to the target device. See *lolan-get.c* for GET and reply format.
 
-Not used
+#### *packet type = 6*: LoLaN SET
+Values of remote variables can be changed with SET packets sent to the target device. See *lolan-set.c* for SET and reply format.
 
-##### 4: LOLAN INFORM
-the payload includes characteristic value updates in CBOR format.
-0 key defines the base path as an array for the key-value pairs. If no 0 key is specified, the root node is the base path. More updates can be included in an inform package as a CBOR array.
+#### *packet type = 7*: LoLaN CONTROL
+Packet type for miscellaneous communication (e.g. timing packet sent by UWB anchors), non-CBOR type payload.
 
-```language-json
-	{ 0: [2,33,4], 1:"updated value"}
-```
+### *bit 3*: security enabled
+Indicates an encrypted packet. *Not implemented yet.*
 
-This results in updating the /2/33/4/1 value with "updated value" at server side. 
+### *bit 4*: frame pending
+The next packet will extend the current one. *Not implemented yet.*
 
-The INFROM message can be acknowledged in the current timeslot (ACK request bit is set if sent).
+### *bit 5*: ACK request
+The recipient shall send an ACK in the same timeslot. *Not used yet.*
 
-##### 5: LOLAN GET
+### *bits 6..9*: bytes to boundary
+If security is enabled, these bits inidicate the number of random filled bytes at the end of the packet to meet the security block boundary (15 bytes max)
 
-Payload is the path to be accessed. Path is defined as an array at key 0.
+### *bit 10*: reserved
+Should be set.
 
-```language-json
-	{ 0: [2,33,4,1] }
-```
+### *bit 11*: routed packet
+If a packet is forwarded (routing request), this bit should be set.
 
-This means GET /2/33/4/1.
+### *bit 12, 13*: frame version
+Set both bits (3 dec.) to indicate LoLaN frame.
 
-The reply should be on air in the same timeslot (ACK request bit is always set).
+### *bit 14*: reserved
+Should be set.
 
-##### 6: LOLAN SET
+### *bit 15*: routing request
+If this bit is set, the receiver device should forward this packet if it is addressed to an other device.
 
-0 key indicates the base path for modifing key-value pairs.
-Other keys are the key-value pairs to be modified 
+## Packet header *packet counter* part
+Generally, a device should increment this number for each original (not ACK, not forwarded) packet sent. In special cases this rule may be overridden, e.g. anchors create timing packets (LoLaN CONTROL) from the incoming UWB packets with the same packet counter value as the incoming packet.
 
-ACK request bit is always set.
+## Packet header *addresses* part
+Device LoLaN addresses can be from 0 to 65534 (0x0000 to 0xFFFE), but 0 address is not recommended. The destination address in LoLaN packets can also be 0xFFFF (*LOLAN_BROADCAST_ADDRESS*), these packets will be processed by all receiver devices.
 
-##### 7: LOLAN CONTROL
+## Packet payload
+Contains the data itself, its length may be also zero (no data).
 
-TBD.
+## CRC-16
+The CRC-16 value is generated from all bytes, including the packet header and the payload.
 
-Like RETRANSMIT REQUEST packet number is an extended packet start packet number
-
-
-#### __bit3__:  Securtiy enbaled
-
-If set, and packet type is LOLAN
-
-#### __bit4__:  Frame pending
-
-The next packet will extend thisone.
-
-#### __bit5__:  ACK request
-
-The recipiend shall send a ACK in the timeslot.
-
-#### __bit6-9__:  Bytes to boundary
-
-If security enabled, these bits inidicate the number of random filled bytes at the end of the packet to meet the security block boundary (15 bytes max)
-
-#### __bit10-11__:  Dest addressing mode
-
-Set to 01 for direct packet
-Set to 11 for routable packet
-
-#### __bit12-13__:  Frame version
-
-Set to 03 for LoLaN
-
-#### __bit14-15__:  Source addressing mode
-
-Set to 01 for direct sending
-Set to 11 for routed packet
