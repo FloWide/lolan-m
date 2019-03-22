@@ -13,6 +13,8 @@
 #include "lolan_config.h"
 
 
+#define LOLAN_VERSION      101    // LoLaN version number
+
 /* LoLaN variable flags and masks */
 #define LOLAN_REGMAP_AUX_BIT                       0x8000
 #define LOLAN_REGMAP_REMOTE_UPDATE_OUTOFRANGE_BIT  0x0400
