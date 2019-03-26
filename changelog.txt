@@ -2,4 +2,6 @@ What's new in version?
 
 101:
 ¤ this is the first numbered version of LoLaN
- 
+¤ higher maximum number of LoLaN variables: 65535 (with memory requirement optimization)
+¤ unlimited maximum variable size
+¤ new variable type: LOLAN_DATA (arbitrary data)

@@ -36,12 +36,13 @@ typedef enum {        // auxiliary enumeration for addCborItemNestedPath() funct
  ******************************************************************************/
 bool isPathValid(const uint8_t *path)
 {
-  uint8_t i, aux;
+  LR_SIZE_T i;
+  bool aux;
 
-  aux = 0;
+  aux = false;
   for (i = 0; i < LOLAN_REGMAP_DEPTH; i++) {
     if (path[i] == 0) {
-      aux = 1;
+      aux = true;
     } else
       if (aux) return false;   // other values under a zero part
   }
@@ -78,9 +79,10 @@ bool isPathValid(const uint8_t *path)
  * @return
  *   The definition level of the specified path.
  ******************************************************************************/
-uint8_t pathDefinitionLevel(lolan_ctx *ctx, const uint8_t *path, uint8_t *occurrences, bool occ_maxrec)
+uint8_t pathDefinitionLevel(lolan_ctx *ctx, const uint8_t *path, LR_SIZE_T *occurrences, bool occ_maxrec)
 {
-  uint8_t i, defLvl;
+  LR_SIZE_T i;
+  uint8_t defLvl;
 
   /* determine the definition level (no check for invalid paths) */
   for (i = 0; i < LOLAN_REGMAP_DEPTH; i++)
@@ -132,10 +134,10 @@ uint8_t pathDefinitionLevel(lolan_ctx *ctx, const uint8_t *path, uint8_t *occurr
  * @return
  *   The number of variables counted.
  ******************************************************************************/
-uint8_t lolanVarFlagCount(lolan_ctx *ctx, uint16_t flags, bool *dlbpsame,
+LR_SIZE_T lolanVarFlagCount(lolan_ctx *ctx, uint16_t flags, bool *dlbpsame,
                           uint8_t *defLevel, uint8_t *bpath)
 {
-  uint8_t i, found;
+  LR_SIZE_T i, found;
   uint8_t bpsave[LOLAN_REGMAP_DEPTH-1];
   uint8_t defLvl = 1;
 
@@ -172,7 +174,7 @@ uint8_t lolanVarFlagCount(lolan_ctx *ctx, uint16_t flags, bool *dlbpsame,
  * @note
  *   FOR INTERNAL USE ONLY.
  ******************************************************************************/
-uint16_t getLolanSetStatusCodeForVariable(lolan_ctx *ctx, uint8_t index)
+uint16_t getLolanSetStatusCodeForVariable(lolan_ctx *ctx, LR_SIZE_T index)
 {
   if (ctx->regMap[index].flags & LOLAN_REGMAP_AUX_BIT) {
     if (ctx->regMap[index].flags & LOLAN_REGMAP_REMOTE_UPDATE_BIT)
@@ -207,7 +209,7 @@ void lolan_regMapSwap(lolan_RegMap *entry1, lolan_RegMap *entry2)
  ******************************************************************************/
 void lolan_regMapSort(lolan_ctx *ctx)
 {
-  uint8_t i, j;
+  LR_SIZE_T i, j;
   bool changed;
 
   j = LOLAN_REGMAP_SIZE;
@@ -399,8 +401,8 @@ int8_t getZeroKeyEntryFromPayload(const lolan_Packet *lp, uint8_t *path, uint16_
  *   LOLAN_RETVAL_GENERROR: An error has occurred.
  *   LOLAN_RETVAL_CBORERROR: A CBOR-related error has occurred.
  *****************************************************************************/
-int8_t lolanGetDataFromCbor(CborValue *it, uint8_t *data, uint8_t data_max,
-           uint8_t *data_len, uint8_t *type)
+int8_t lolanGetDataFromCbor(CborValue *it, uint8_t *data, LV_SIZE_T data_max,
+            LV_SIZE_T *data_len, uint8_t *type)
 {
   CborType ctype;
   CborError cerr;
@@ -454,20 +456,22 @@ int8_t lolanGetDataFromCbor(CborValue *it, uint8_t *data, uint8_t data_max,
         *type = LOLAN_INT;
       }
       break;
-    case CborByteStringType:   // byte string
+    case CborByteStringType:   // byte string, assumed as arbitrary data
       {
         size_t len;
-        len = data_max == 0 ? 255 : data_max;    // 255 = "unlimited size"
-        cbor_value_copy_byte_string(it, data, &len, it);   // get string (the CBOR iterator is also advanced)
+        len = data_max == 0 ? LV_SIZE_MAX : data_max;    // LV_SIZE_MAX = "unlimited size"
+        cerr = cbor_value_copy_byte_string(it, data, &len, it);   // get string (the CBOR iterator is also advanced)
+        if (cerr != CborNoError) return LOLAN_RETVAL_GENERROR;   // may be error if the string is too long
         *data_len = len;
-        *type = LOLAN_STR;
+        *type = LOLAN_DATA;
       }
       break;
     case CborTextStringType:   // text string
       {
         size_t len;
-        len = data_max == 0 ? 255 : data_max;    // 255 = "unlimited size"
-        cbor_value_copy_text_string(it, data, &len, it);   // get string (the CBOR iterator is also advanced)
+        len = data_max == 0 ? LV_SIZE_MAX : data_max;    // LV_SIZE_MAX = "unlimited size"
+        cerr = cbor_value_copy_text_string(it, (char *) data, &len, it);   // get string (the CBOR iterator is also advanced)
+        if (cerr != CborNoError) return LOLAN_RETVAL_GENERROR;   // may be error if the string is too long
         *data_len = len;
         *type = LOLAN_STR;
       }
@@ -546,7 +550,7 @@ int8_t lolanGetDataFromCbor(CborValue *it, uint8_t *data, uint8_t data_max,
  ******************************************************************************/
 int8_t lolanVarUpdateFromCbor(lolan_ctx *ctx, const uint8_t *path, CborValue *it, uint8_t *error)
 {
-  uint8_t i;
+  LR_SIZE_T i;
   bool found;
 
   CborType type;
@@ -738,11 +742,25 @@ int8_t lolanVarUpdateFromCbor(lolan_ctx *ctx, const uint8_t *path, CborValue *it
       }
       break;
     case CborByteStringType:
-      if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_STR) {   // type checking
+      if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_STR) {   // type checking: string?
         size_t len;
         cerr = cbor_value_calculate_string_length(it, &len);   // calculate CBOR string length
         if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
-        if (ctx->regMap[i].size < len) {  // the string is too long
+        if (ctx->regMap[i].size < len+1) {  // the string is too long (+1: terminating zero should also fit)
+          cerr = cbor_value_advance(it);   // advance CBOR iterator
+          if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+          if (error) *error = LVUFC_OUTOFRANGE;
+          ctx->regMap[i].flags |= LOLAN_REGMAP_REMOTE_UPDATE_OUTOFRANGE_BIT;  // set flag
+          return LOLAN_RETVAL_NO;
+        }
+        len = ctx->regMap[i].size;
+        cbor_value_copy_byte_string(it, ctx->regMap[i].data, &len, it);   // update value (the CBOR iterator is also advanced)
+        ctx->regMap[i].flags |= LOLAN_REGMAP_REMOTE_UPDATE_BIT;  // set flag
+      } else if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_DATA) {   // type checking: arbitrary data?
+        size_t len;
+        cerr = cbor_value_calculate_string_length(it, &len);   // calculate CBOR string length
+        if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+        if (ctx->regMap[i].size != len) {  // arbitrary data should be exactly the same length when setting
           cerr = cbor_value_advance(it);   // advance CBOR iterator
           if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
           if (error) *error = LVUFC_OUTOFRANGE;
@@ -765,7 +783,7 @@ int8_t lolanVarUpdateFromCbor(lolan_ctx *ctx, const uint8_t *path, CborValue *it
         size_t len;
         cerr = cbor_value_calculate_string_length(it, &len);   // calculate CBOR string length
         if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
-        if (ctx->regMap[i].size < len) {  // the string is too long
+        if (ctx->regMap[i].size < len+1) {  // the string is too long (+1: terminating zero should also fit)
           cerr = cbor_value_advance(it);   // advance CBOR iterator
           if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
           if (error) *error = LVUFC_OUTOFRANGE;
@@ -1034,7 +1052,7 @@ int8_t createCborUintDataSimple(CborEncoder *encoder, uint64_t key, uint64_t val
  *   LOLAN_RETVAL_CBORERROR:  A CBOR error has occurred.
  *   LOLAN_RETVAL_MEMERROR:   CBOR out of memory error.
  ******************************************************************************/
-int8_t lolanVarDataToCbor(uint8_t *data, uint8_t data_len, lolan_VarType type,
+int8_t lolanVarDataToCbor(uint8_t *data, LV_SIZE_T data_len, lolan_VarType type,
            CborEncoder *encoder)
 {
   CborError cerr;
@@ -1102,8 +1120,16 @@ int8_t lolanVarDataToCbor(uint8_t *data, uint8_t data_len, lolan_VarType type,
       }
       break;
     case LOLAN_STR:   // string
-      cerr = cbor_encode_text_string(encoder, (char*) data, strlen((char*) data));
-      /* XXX: byte string would be more suitable (we do not want to handle UTF-8), text string type is for JSON compatibility */
+      {
+        size_t len = strlen((char*) data);   // get string length
+
+        if (len > data_len) len = data_len;   // limit the string to the specified length
+        cerr = cbor_encode_text_string(encoder, (char*) data, len);   // encode as text string
+        if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
+      }
+      break;
+    case LOLAN_DATA:   // arbitrary data
+      cerr = cbor_encode_byte_string(encoder, data, data_len);   // encode as byte string
       if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
       break;
     default:   // unsupported variable type
@@ -1134,9 +1160,9 @@ int8_t lolanVarDataToCbor(uint8_t *data, uint8_t data_len, lolan_VarType type,
  *   LOLAN_RETVAL_CBORERROR:  A CBOR error has occurred.
  *   LOLAN_RETVAL_MEMERROR:   CBOR out of memory error.
  ******************************************************************************/
-int8_t lolanVarToCbor(lolan_ctx *ctx, const uint8_t *path, uint8_t index, CborEncoder *encoder)
+int8_t lolanVarToCbor(lolan_ctx *ctx, const uint8_t *path, LR_SIZE_T index, CborEncoder *encoder)
 {
-  uint8_t i;
+  LR_SIZE_T i;
   bool found;
 
   if (path) {   // path is assigned
@@ -1178,15 +1204,15 @@ int8_t lolanVarToCbor(lolan_ctx *ctx, const uint8_t *path, uint8_t index, CborEn
  *      (parameter "path" is not required)
  *      This should be called when the last variable was already added.
  *   The path of every variable added to encode should be after the previous
- *   in order to avoid fragmentation of groups.
- * @param[in] path and index
- *   Path is the address of a uint8_t array containing the exact path of a
- *   LoLaN variable to encode. Index is the register map index of this
- *   variable.
+ *   in order to avoid fragmentation of groups. (If the variables in the
+ *   register map are sorted by path, the index of the variable to encode
+ *   should be always bigger than the index of the recently encoded one.)
+ * @param[in] index
+ *   Index is the register map index of the variable to encode.
  * @note
  *   FOR INTERNAL USE ONLY.
  ******************************************************************************/
-int8_t lolanVarToCborNestedPath(lolan_ctx *ctx, uint8_t index, CborEncoder *encoder,
+int8_t lolanVarToCborNestedPath(lolan_ctx *ctx, LR_SIZE_T index, CborEncoder *encoder,
            lolanVarToCborNestedPath_aux action, bool statusCodeInstead)
 {
   static CborEncoder nested_enc[LOLAN_REGMAP_DEPTH];
@@ -1309,7 +1335,7 @@ int8_t lolanVarToCborNestedPath(lolan_ctx *ctx, uint8_t index, CborEncoder *enco
  ******************************************************************************/
 int8_t lolanVarBranchToCbor(lolan_ctx *ctx, const uint8_t *path, CborEncoder *encoder)
 {
-  uint8_t i;
+  LR_SIZE_T i;
   uint8_t defLvl;
   bool first;
   int8_t err;
@@ -1390,7 +1416,7 @@ int8_t lolanVarBranchToCbor(lolan_ctx *ctx, const uint8_t *path, CborEncoder *en
 int8_t lolanVarFlagToCbor(lolan_ctx *ctx, uint16_t flags, CborEncoder *encoder,
              bool auxflagset, bool statusCodeInstead)
 {
-  uint8_t i;
+  LR_SIZE_T i;
   bool first;
   int8_t err;
 

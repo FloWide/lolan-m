@@ -178,13 +178,14 @@
  *    LOLAN_RETVAL_CBORERROR: A CBOR-related error has occurred.
  *****************************************************************************/
 int8_t lolan_processSet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply) {
-  uint8_t i;
+  LR_SIZE_T i;
   int8_t err;
   uint8_t path[LOLAN_REGMAP_DEPTH], defLvl;
   uint16_t zerovalue;
   bool oldStyle;
   int key;
-  uint8_t exterr, success, overall;
+  uint8_t exterr;
+  LR_SIZE_T success, overall;
   bool problems;
   uint16_t code;
   lolan_BunchUpdateOutputStruct buStruct;

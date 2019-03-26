@@ -111,8 +111,8 @@
  *      requested in one step). Disable multiple reporting and try again!
  ******************************************************************************/
 int8_t lolan_createInform(lolan_ctx *ctx, lolan_Packet *pak, bool multi) {
-  uint8_t i;
-  uint8_t count, defLvl, bpath[LOLAN_REGMAP_DEPTH-1];
+  LR_SIZE_T i, count;
+  uint8_t defLvl, bpath[LOLAN_REGMAP_DEPTH-1];
   bool dlbpsame;
   int8_t err;
 

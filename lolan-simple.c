@@ -41,7 +41,7 @@
  *   LOLAN_RETVAL_CBORERROR: A CBOR-related error has occurred.
  *****************************************************************************/
 int8_t lolan_seekAndGet(lolan_Packet *pak, const uint8_t *rpath, uint8_t *data,
-          uint8_t data_max, uint8_t *data_len, uint8_t *type)
+          LV_SIZE_T data_max, LV_SIZE_T *data_len, uint8_t *type)
 {
   uint8_t path[LOLAN_REGMAP_DEPTH];
   uint8_t i, alevel;
@@ -143,7 +143,7 @@ int8_t lolan_seekAndGet(lolan_Packet *pak, const uint8_t *rpath, uint8_t *data,
  *   LOLAN_RETVAL_MEMERROR: CBOR out of memory error.
  *****************************************************************************/
 int8_t lolan_simpleCreateSet(lolan_ctx *ctx, lolan_Packet *pak, const uint8_t *path,
-              uint8_t *data, uint8_t data_len, lolan_VarType type)
+              uint8_t *data, LV_SIZE_T data_len, lolan_VarType type)
 {
   CborEncoder enc, map_enc, array_enc;
   CborError cerr;
@@ -236,8 +236,8 @@ int8_t lolan_simpleCreateSet(lolan_ctx *ctx, lolan_Packet *pak, const uint8_t *p
  *     LoLaN ACK packet).
  *   LOLAN_RETVAL_CBORERROR: A CBOR-related error has occurred.
  *****************************************************************************/
-int8_t lolan_simpleProcessAck(lolan_Packet *pak, uint8_t *data, uint8_t data_max,
-              uint8_t *data_len, uint8_t *type, bool *zerokey)
+int8_t lolan_simpleProcessAck(lolan_Packet *pak, uint8_t *data, LV_SIZE_T data_max,
+             LV_SIZE_T *data_len, uint8_t *type, bool *zerokey)
 {
   CborParser parser;
   CborValue it;
@@ -314,7 +314,7 @@ int8_t lolan_simpleProcessAck(lolan_Packet *pak, uint8_t *data, uint8_t data_max
  *   LOLAN_RETVAL_CBORERROR: A CBOR-related error has occurred.
  *****************************************************************************/
 int8_t lolan_simpleExtractFromInform(lolan_Packet *pak, const uint8_t *path, uint8_t *data,
-                uint8_t data_max, uint8_t *data_len, uint8_t *type)
+                  LV_SIZE_T data_max, LV_SIZE_T *data_len, uint8_t *type)
 {
   int8_t err;
   uint8_t xpath[LOLAN_REGMAP_DEPTH];

@@ -122,10 +122,10 @@
  *****************************************************************************/
 int8_t lolan_processGet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply)
 {
-  uint8_t i;
+  LR_SIZE_T i;
   int8_t err;
   uint8_t path[LOLAN_REGMAP_DEPTH];
-  uint8_t occ;
+  LR_SIZE_T occ;
   bool force_vr;
 
   CborEncoder enc, map_enc;

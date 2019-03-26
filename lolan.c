@@ -75,9 +75,10 @@ void lolan_setAddress(lolan_ctx *ctx, uint16_t new_address)
  *   otherwise LOLAN_RETVAL_GENERROR.
  *****************************************************************************/
 int8_t lolan_regVar(lolan_ctx *ctx, const uint8_t *path, lolan_VarType vType, void *ptr,
-                    uint8_t size, bool readOnly)
+                    LV_SIZE_T size, bool readOnly)
 {
-  uint8_t i, defLvl, occ;
+  uint8_t defLvl;
+  LR_SIZE_T i, occ;
 
   /* check variable size */
   if (size == 0) return LOLAN_RETVAL_GENERROR;  // zero size is not acceptable
@@ -146,7 +147,7 @@ int8_t lolan_regVar(lolan_ctx *ctx, const uint8_t *path, lolan_VarType vType, vo
  *****************************************************************************/
 int8_t lolan_regVarUpdated(lolan_ctx *ctx, const void *ptr, bool clearFlag)
 {
-  uint8_t i;
+  LR_SIZE_T i;
 
   for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
     if (ctx->regMap[i].p[0] != 0) {   // (skip free entries)
@@ -181,7 +182,7 @@ int8_t lolan_regVarUpdated(lolan_ctx *ctx, const void *ptr, bool clearFlag)
  *****************************************************************************/
 int8_t lolan_rmVar(lolan_ctx *ctx, const void *ptr)
 {
-  uint8_t i;
+  LR_SIZE_T i;
 
   for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
     if (ctx->regMap[i].p[0] != 0) {   // (skip free entries)
@@ -213,7 +214,7 @@ int8_t lolan_rmVar(lolan_ctx *ctx, const void *ptr)
  *****************************************************************************/
 int8_t lolan_setFlag(lolan_ctx *ctx, const void *ptr, uint16_t flags)
 {
-  uint8_t i;
+  LR_SIZE_T i;
 
   for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
     if (ctx->regMap[i].p[0] != 0) {   // (skip free entries)
@@ -244,7 +245,7 @@ int8_t lolan_setFlag(lolan_ctx *ctx, const void *ptr, uint16_t flags)
  *****************************************************************************/
 int8_t lolan_clearFlag(lolan_ctx *ctx, const void *ptr, uint16_t flags)
 {
-  uint8_t i;
+  LR_SIZE_T i;
 
   for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
     if (ctx->regMap[i].p[0] != 0) {    // (skip free entries)
