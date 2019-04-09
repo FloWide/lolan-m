@@ -1,0 +1,10 @@
+LoLaN programming FAQ
+~~~~~~~~~~~~~~~~~~~~~
+
+Q: HOW TO IMPLEMENT A NEW VARIABLE TYPE IN LOLAN?
+A: Follow the steps:
+1. Create a new enumeration item in lolan_VarType typedef. (file: lolan.h)
+2. Do you want to set this type of variable remotely, or get with LoLaN Simple Master? (If not, proceed to 3.)
+a) Make lolanGetDataFromCbor() subroutine to recognize the new type in CBOR. (file: lolan-utils.c)
+b) Make lolanVarUpdateFromCbor() subroutine capable to update the new type LoLaN variable from CBOR. (file: lolan-utils.c)
+3. Create an entry for the new type in lolanVarDataToCbor() subroutine. (file: lolan-utils.c)
