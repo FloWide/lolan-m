@@ -5,3 +5,8 @@ What's new in version?
 ¤ higher maximum number of LoLaN variables: 65535 (with memory requirement optimization)
 ¤ unlimited maximum variable size
 ¤ new variable type: LOLAN_DATA (arbitrary data)
+
+102:
+¤ name change: lolan_regVarUpdated -> lolan_isVarUpdated
+¤ new function: lolan_getFlag
+¤ facilitate processing for remotely updated variables (lolan_processUpdated)

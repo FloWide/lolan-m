@@ -13,7 +13,7 @@
 #include "lolan_config.h"
 
 
-#define LOLAN_VERSION      101    // LoLaN version number
+#define LOLAN_VERSION      102    // LoLaN version number
 
 
 /* common defines */
@@ -126,13 +126,16 @@ typedef struct {
 //  uint8_t nodeIV[16];
 } lolan_ctx;
 
+typedef void (*lpuCallback)(void*);   // callback function type pointer definition for lolan_processUpdated
+
 
 extern void lolan_init(lolan_ctx *ctx, uint16_t initial_address);
 extern void lolan_setAddress(lolan_ctx *ctx, uint16_t new_address);
 
 extern int8_t lolan_regVar(lolan_ctx *ctx, const uint8_t *path, lolan_VarType vType, void *ptr,
                            LV_SIZE_T size, bool readOnly);
-extern int8_t lolan_regVarUpdated(lolan_ctx *ctx, const void *ptr, bool clearFlag);
+extern int8_t lolan_isVarUpdated(lolan_ctx *ctx, const void *ptr, bool clearFlag);
+extern int8_t lolan_processUpdated(lolan_ctx *ctx, bool clearFlag, lpuCallback callback);
 extern int8_t lolan_rmVar(lolan_ctx *ctx, const void *ptr);
 extern int8_t lolan_setFlag(lolan_ctx *ctx, const void *ptr, uint16_t flags);
 extern int8_t lolan_clearFlag(lolan_ctx *ctx, const void *ptr, uint16_t flags);

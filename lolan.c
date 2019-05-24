@@ -145,7 +145,7 @@ int8_t lolan_regVar(lolan_ctx *ctx, const uint8_t *path, lolan_VarType vType, vo
  *   LOLAN_RETVAL_GENERROR: no LoLaN variable is mapped to the specified
  *     memory address.
  *****************************************************************************/
-int8_t lolan_regVarUpdated(lolan_ctx *ctx, const void *ptr, bool clearFlag)
+int8_t lolan_isVarUpdated(lolan_ctx *ctx, const void *ptr, bool clearFlag)
 {
   LR_SIZE_T i;
 
@@ -165,7 +165,55 @@ int8_t lolan_regVarUpdated(lolan_ctx *ctx, const void *ptr, bool clearFlag)
   }
   /* no variable mapped to the specified address was found */
   return LOLAN_RETVAL_GENERROR;
-} /* lolan_regVarUpdated */
+} /* lolan_isVarUpdated */
+
+/**************************************************************************//**
+ * @brief
+ *   Process the updated variables with a callback function.
+ * @details
+ *   This subroutine repeatedly invokes the callback function with
+ *   the pointers of the updated variables as parameter, if any found.
+ * @param[in] ctx
+ *   Pointer to the LoLaN context variable.
+ * @param[in] clearFlag
+ *   If true, the remote update flags will be cleared.
+ * @param[in] callback
+ *   Pointer to the callback function which does the actual processing
+ *   related to the updated variables.
+ *   Type:   void ( void* )
+ *   Set this parameter to NULL to check for the presence of updated
+ *   variables only.
+ * @return
+ *   LOLAN_RETVAL_YES: at least one LoLaN variable has been remotely
+ *     updated.
+ *   LOLAN_RETVAL_NO: no LoLaN variable has been remotely updated
+ *     since the last checking.
+ *****************************************************************************/
+int8_t lolan_processUpdated(lolan_ctx *ctx, bool clearFlag, lpuCallback callback)
+{
+  LR_SIZE_T i;
+  bool found;
+
+  found = false;
+  for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
+    if (ctx->regMap[i].p[0] != 0) {   // (skip free entries)
+      if (ctx->regMap[i].flags & LOLAN_REGMAP_REMOTE_UPDATE_BIT) {   // check remote update flag
+        if (clearFlag) {
+          ctx->regMap[i].flags &= ~(LOLAN_REGMAP_REMOTE_UPDATE_BIT);
+        }
+        found = true;
+        if (callback != NULL) {   // callback function is specified
+          (*callback)(ctx->regMap[i].data);   // invoke callback function
+        }
+      }
+    }
+  }
+  /* indicate the presence of updated variables */
+  if (found)
+    return LOLAN_RETVAL_YES;
+    else
+    return LOLAN_RETVAL_NO;
+} /* lolan_processUpdated */
 
 /**************************************************************************//**
  * @brief
@@ -227,6 +275,32 @@ int8_t lolan_setFlag(lolan_ctx *ctx, const void *ptr, uint16_t flags)
   /* no variable mapped to the specified address was found */
   return LOLAN_RETVAL_GENERROR;
 } /* lolan_setFlag */
+
+/**************************************************************************//**
+ * @brief
+ *   Get flags of a LoLaN variable.
+ * @param[in] ctx
+ *   Pointer to the LoLaN context variable.
+ * @param[in] ptr
+ *   Pointer of the variable data (the LoLaN variable will be identified
+ *   by this information).
+ * @return
+ *   Flags of the LoLaN variable (zero if no variable found).
+ *****************************************************************************/
+uint16_t lolan_getFlag(lolan_ctx *ctx, const void *ptr)
+{
+  LR_SIZE_T i;
+
+  for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
+    if (ctx->regMap[i].p[0] != 0) {   // (skip free entries)
+      if (ctx->regMap[i].data == ptr) {    // variable is found by data pointer
+        return ctx->regMap[i].flags;      // return flags
+      }
+    }
+  }
+  /* no variable mapped to the specified address was found */
+  return 0;
+} /* lolan_getFlag */
 
 /**************************************************************************//**
  * @brief
