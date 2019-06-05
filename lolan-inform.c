@@ -115,6 +115,7 @@ int8_t lolan_createInform(lolan_ctx *ctx, lolan_Packet *pak, bool multi) {
   uint8_t defLvl, bpath[LOLAN_REGMAP_DEPTH-1];
   bool dlbpsame;
   int8_t err;
+  bool first;
 
   CborError cerr;
   CborEncoder enc, map_enc, array_enc;
@@ -168,10 +169,14 @@ int8_t lolan_createInform(lolan_ctx *ctx, lolan_Packet *pak, bool multi) {
     }
   } else {   // old style inform
     if (!multi) count = 1;   // if multiple variable reporting is not allowed
-    cerr = cbor_encoder_create_map(&enc, &map_enc, (defLvl > 1) ? count+1 : count);   // create root map
-    /* the root map size is the count of the variables to report if the definition level is 1 (no base path
-     * definition is required), otherwise +1 due to the base path definition with key=0
-     */
+    if (count == 1) {   // XXX: in this improved multi-INFORM implementation we cannot use definite length root map, but it is o.k. when only one variable will be INFORMed
+      cerr = cbor_encoder_create_map(&enc, &map_enc, (defLvl > 1) ? count+1 : count);   // create root map
+      /* the root map size is the count of the variables to report if the definition level is 1 (no base path
+       * definition is required), otherwise +1 due to the base path definition with key=0
+       */
+    } else {
+      cerr = cbor_encoder_create_map(&enc, &map_enc, CborIndefiniteLength);   // create root map
+    }
     if (cerr != CborNoError) {
       DLOG(("\n CBOR encode error"));
       return LOLAN_RETVAL_CBORERROR;
@@ -202,20 +207,40 @@ int8_t lolan_createInform(lolan_ctx *ctx, lolan_Packet *pak, bool multi) {
       }
     }
     /* encode LoLaN variables */
+    first = true;  // indicate that the next will be the first variable to encode
     for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
       if ( ((ctx->regMap[i].flags & flags) == flags)      // find variables
            && (ctx->regMap[i].p[0] != 0) ) {              // (not a free entry)
+        CborEncoder map_enc_bak;
+
+        map_enc_bak = map_enc;   // back-up CBOR encoder variable
         cerr = cbor_encode_uint(&map_enc, ctx->regMap[i].p[defLvl-1]);   // encode key (path item)
         if (cerr != CborNoError) {
-          DLOG(("\n CBOR encode error"));
-          return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
+          if (first) {   // at the first variable nothing can be done to avoid error
+            DLOG(("\n CBOR encode error"));
+            return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
+          } else {   // not the first variable, revert to back-up to avoid error
+            map_enc = map_enc_bak;   // restore CBOR encoder variable (state) from back-up
+            break;   // stop encoding
+          }
         }
         err = lolanVarToCbor(ctx, NULL, i, &map_enc);   // encode variable
         if (err != LOLAN_RETVAL_YES) {
-          DLOG(("\n CBOR encode error"));
-          return err;
+          if (first) {   // at the first variable nothing can be done to avoid error
+            DLOG(("\n CBOR encode error"));
+            return err;
+          } else {   // not the first variable, revert to back-up to avoid error
+            map_enc = map_enc_bak;   // restore CBOR encoder variable (state) from back-up
+            break;   // stop encoding
+          }
         }
+        if (!first && (LOLAN_PACKET_MAX_PAYLOAD_SIZE < cbor_encoder_get_buffer_size(&enc, pak->payload) + 1)) {   // 1 is the size of indefinite length container terminator (BreakByte)
+          // no remaining buffer space to close the indefinite length root map (not after the first variable)
+          map_enc = map_enc_bak;   // restore CBOR encoder variable (state) from back-up
+          break;   // stop encoding
+        }  // if (first) but not enough buffer space -> will fail on closing the root map
         ctx->regMap[i].flags |= LOLAN_REGMAP_AUX_BIT;  // set auxiliary flag (to delete the local update flags finally)
+        first = false;   // the first variable was encoded
         if (!multi) break;   // if multiple variable reporting is not allowed: break after the first encoded variable
       }
     }

@@ -18,7 +18,9 @@
 typedef enum {        // auxiliary enumeration for addCborItemNestedPath() function
   LVTCNPAUX_INITIAL,    // do the initialization and add the current item
   LVTCNPAUX_NORMAL,     // next items
-  LVTCNPAUX_FINALIZE    // the recent was the last item, do the finalization
+  LVTCNPAUX_FINALIZE,   // the recent was the last item, do the finalization
+  LVTCNPAUX_BACKUP,       // save the internal state of the function
+  LVTCNPAUX_RESTORE     // restore the saved internal state of the function
 } lolanVarToCborNestedPath_aux;
 
 /**************************************************************************//**
@@ -1194,30 +1196,42 @@ int8_t lolanVarToCbor(lolan_ctx *ctx, const uint8_t *path, LR_SIZE_T index, Cbor
  *   This procedure creates the required nesting and key values for a LoLaN
  *   variable in CBOR in function of the previously added variable.
  *   Calling order (important!):
- *   1. action = ACINPAUX_INITIAL
+ *   1. action = LVTCNPAUX_INITIAL
  *      (all parameters are required)
  *      The first variable should be added this way.
- *   2. action = ACINPAUX_NORMAL
+ *   2. action = LVTCNPAUX_NORMAL
  *      (parameter "encoder" is not required)
  *      The method for adding all other variables.
- *   3. action = ACINPAUX_FINALIZE
- *      (parameter "path" is not required)
+ *   3. action = LVTCNPAUX_FINALIZE
+ *      (parameter "index" is not required)
  *      This should be called when the last variable was already added.
  *   The path of every variable added to encode should be after the previous
  *   in order to avoid fragmentation of groups. (If the variables in the
  *   register map are sorted by path, the index of the variable to encode
  *   should be always bigger than the index of the recently encoded one.)
+ *   Description of additional features:
+ *     action = LVTCNPAUX_BACKUP
+ *       (parameter "encoder" is not required)
+ *       Back-up internal static variables to the storage specified by
+ *       "index" (0 or 1).
+ *     action = LVTCNPAUX_RESTORE
+ *       (parameter "encoder" is not required)
+ *       Restore internal static variables from the storage specified by
+ *       "index" (0 or 1).
  * @param[in] index
  *   Index is the register map index of the variable to encode.
+ *   (It has special meaning in some cases.)
  * @note
  *   FOR INTERNAL USE ONLY.
  ******************************************************************************/
 int8_t lolanVarToCborNestedPath(lolan_ctx *ctx, LR_SIZE_T index, CborEncoder *encoder,
            lolanVarToCborNestedPath_aux action, bool statusCodeInstead)
 {
-  static CborEncoder nested_enc[LOLAN_REGMAP_DEPTH];
-  static uint8_t last_path[LOLAN_REGMAP_DEPTH];
-  static uint8_t last_defLvl;
+  static struct {
+    CborEncoder nested_enc[LOLAN_REGMAP_DEPTH];
+    uint8_t last_path[LOLAN_REGMAP_DEPTH];
+    uint8_t last_defLvl;
+  } stv, stvbak[2];
   uint8_t *path;
   CborError cerr;
   int8_t err;
@@ -1226,66 +1240,74 @@ int8_t lolanVarToCborNestedPath(lolan_ctx *ctx, LR_SIZE_T index, CborEncoder *en
   path = ctx->regMap[index].p;   // (just for better readibility)
   switch (action) {
     case LVTCNPAUX_INITIAL:
-      nested_enc[0] = *encoder;   // save the initial CBOR encoder struct
+      stv.nested_enc[0] = *encoder;   // save the initial CBOR encoder struct
       defLvl = pathDefinitionLevel(ctx, path, NULL, false);  // get definition level for path
       if (defLvl == 0) return LOLAN_RETVAL_GENERROR;
-      cerr = cbor_encode_uint(&nested_enc[0], path[0]);   // encode the first path element as key
+      cerr = cbor_encode_uint(&stv.nested_enc[0], path[0]);   // encode the first path element as key
       if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
       for (i = 1; i < defLvl; i++) {   // create nested CBOR maps
-        cerr = cbor_encoder_create_map(&nested_enc[i-1], &nested_enc[i], CborIndefiniteLength);   // create map for path level
+        cerr = cbor_encoder_create_map(&stv.nested_enc[i-1], &stv.nested_enc[i], CborIndefiniteLength);   // create map for path level
         if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
-        cerr = cbor_encode_uint(&nested_enc[i], path[i]);   // encode the path element as key
+        cerr = cbor_encode_uint(&stv.nested_enc[i], path[i]);   // encode the path element as key
         if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
       }
       if (!statusCodeInstead) {  // variable data
-        err = lolanVarToCbor(ctx, NULL, index, &nested_enc[defLvl-1]);   // encode the LoLaN variable itself
+        err = lolanVarToCbor(ctx, NULL, index, &stv.nested_enc[defLvl-1]);   // encode the LoLaN variable itself
         if (err != LOLAN_RETVAL_YES) return err;
       } else {   // status code
-        cerr = cbor_encode_uint(&nested_enc[defLvl-1], getLolanSetStatusCodeForVariable(ctx, index));  // encode status code
+        cerr = cbor_encode_uint(&stv.nested_enc[defLvl-1], getLolanSetStatusCodeForVariable(ctx, index));  // encode status code
         if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
       }
-      memcpy(last_path, path, LOLAN_REGMAP_DEPTH);   // store the path as last path
-      last_defLvl = defLvl;   // store the definition level as last path's def. level
+      memcpy(stv.last_path, path, LOLAN_REGMAP_DEPTH);   // store the path as last path
+      stv.last_defLvl = defLvl;   // store the definition level as last path's def. level
       break;
     case LVTCNPAUX_NORMAL:
       defLvl = pathDefinitionLevel(ctx, path, NULL, false);  // get definition level for path
       if (defLvl == 0) return LOLAN_RETVAL_GENERROR;
-      for (i = 0; i < last_defLvl; i++) {   // compare the path to the previous
-        if (path[i] != last_path[i]) {   // mismatch
+      for (i = 0; i < stv.last_defLvl; i++) {   // compare the path to the previous
+        if (path[i] != stv.last_path[i]) {   // mismatch
           /* revert to the last matching level */
-          for (j = last_defLvl-1; j > i; j--) {
-            cerr = cbor_encoder_close_container(&nested_enc[j-1], &nested_enc[j]);   // close map assigned to the path level
+          for (j = stv.last_defLvl-1; j > i; j--) {
+            cerr = cbor_encoder_close_container(&stv.nested_enc[j-1], &stv.nested_enc[j]);   // close map assigned to the path level
             if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
           }
           break;
         }
       }
       /* (now i contains the first mismatching path level) */
-      cerr = cbor_encode_uint(&nested_enc[i], path[i]);   // encode the first different path element as key
+      cerr = cbor_encode_uint(&stv.nested_enc[i], path[i]);   // encode the first different path element as key
       if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
       for (j = i+1; j < defLvl; j++) {   // create nested CBOR maps
-        cerr = cbor_encoder_create_map(&nested_enc[j-1], &nested_enc[j], CborIndefiniteLength);   // create map for path level
+        cerr = cbor_encoder_create_map(&stv.nested_enc[j-1], &stv.nested_enc[j], CborIndefiniteLength);   // create map for path level
         if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
-        cerr = cbor_encode_uint(&nested_enc[j], path[j]);   // encode the path element as key
+        cerr = cbor_encode_uint(&stv.nested_enc[j], path[j]);   // encode the path element as key
         if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
       }
       if (!statusCodeInstead) {  // variable data
-        err = lolanVarToCbor(ctx, NULL, index, &nested_enc[defLvl-1]);   // encode the LoLaN variable itself
+        err = lolanVarToCbor(ctx, NULL, index, &stv.nested_enc[defLvl-1]);   // encode the LoLaN variable itself
         if (err != LOLAN_RETVAL_YES) return err;
       } else {   // status code
-        cerr = cbor_encode_uint(&nested_enc[defLvl-1], getLolanSetStatusCodeForVariable(ctx, index));  // encode status code
+        cerr = cbor_encode_uint(&stv.nested_enc[defLvl-1], getLolanSetStatusCodeForVariable(ctx, index));  // encode status code
         if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
       }
-      memcpy(last_path, path, LOLAN_REGMAP_DEPTH);   // store the path as last path
-      last_defLvl = defLvl;   // store the definition level as last path's def. level
+      memcpy(stv.last_path, path, LOLAN_REGMAP_DEPTH);   // store the path as last path
+      stv.last_defLvl = defLvl;   // store the definition level as last path's def. level
       break;
     case LVTCNPAUX_FINALIZE:
       /* close all open maps */
-      for (i = last_defLvl-1; i > 0; i--) {
-        cerr = cbor_encoder_close_container(&nested_enc[i-1], &nested_enc[i]);   // close map
+      for (i = stv.last_defLvl-1; i > 0; i--) {
+        cerr = cbor_encoder_close_container(&stv.nested_enc[i-1], &stv.nested_enc[i]);   // close map
         if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
       }
-      *encoder = nested_enc[0];   // output the updated CBOR encoder struct
+      *encoder = stv.nested_enc[0];   // output the updated CBOR encoder struct
+      break;
+    case LVTCNPAUX_BACKUP:
+      /* back-up all static variables to save internal state */
+      stvbak[index] = stv;
+      break;
+    case LVTCNPAUX_RESTORE:
+      /* restore internal state */
+      stv = stvbak[index];
       break;
   }
 
@@ -1359,7 +1381,7 @@ int8_t lolanVarBranchToCbor(lolan_ctx *ctx, const uint8_t *path, CborEncoder *en
     }
   }
   if (!first) {   // at least one variable was found
-    err = lolanVarToCborNestedPath(ctx, i, encoder, LVTCNPAUX_FINALIZE, false);   // finalize CBOR tree
+    err = lolanVarToCborNestedPath(ctx, 0, encoder, LVTCNPAUX_FINALIZE, false);   // finalize CBOR tree
     if (err != LOLAN_RETVAL_YES) return err;
     return LOLAN_RETVAL_YES;
   } else {   // no variable was found
@@ -1389,6 +1411,10 @@ int8_t lolanVarBranchToCbor(lolan_ctx *ctx, const uint8_t *path, CborEncoder *en
  *         CBOR item 4/#3:  key = 2 (integer)
  *         CBOR item 4/#4:  value of data (2, 2, 0) (any type)
  *
+ *   If all variables marked to encode could not fit in the CBOR
+ *   encoder buffer, this procedure would encode the maximum
+ *   number of variables which is possible. The remainings can be
+ *   processed with consecutive calls.
  * @note
  *   IMPORTANT: The LoLaN register map must be sorted by path to use
  *   this subroutine!
@@ -1406,7 +1432,7 @@ int8_t lolanVarBranchToCbor(lolan_ctx *ctx, const uint8_t *path, CborEncoder *en
  *   If true, not the variable data but the status code after
  *   lolanVarUpdateFromCbor() will be output.
  * @return
- *   LOLAN_RETVAL_YES:        The variables were encoded successfully.
+ *   LOLAN_RETVAL_YES:        Variables were encoded successfully.
  *   LOLAN_RETVAL_NO:         No variable was found to encode.
  *   LOLAN_RETVAL_GENERROR:   A general error has occurred.
  *   LOLAN_RETVAL_CBORERROR:  A CBOR error has occurred.
@@ -1424,15 +1450,34 @@ int8_t lolanVarFlagToCbor(lolan_ctx *ctx, uint16_t flags, CborEncoder *encoder,
   for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
     if ( ((ctx->regMap[i].flags & flags) == flags)      // variable found with the specified flags
          && (ctx->regMap[i].p[0] != 0) ) {              // (not a free entry)
-      if (first) {
+      if (first) {   // the first item
         // initialize CBOR tree and add the first item
         err = lolanVarToCborNestedPath(ctx, i, encoder, LVTCNPAUX_INITIAL, statusCodeInstead);
         if (err != LOLAN_RETVAL_YES) return err;
         first = false;
-      } else {
+      } else {   // other items
+        lolanVarToCborNestedPath(ctx, 0, NULL, LVTCNPAUX_BACKUP, false);   // backup internal state of lolanVarToCborNestedPath() to storage 0
         // add the current item to the CBOR tree
         err = lolanVarToCborNestedPath(ctx, i, NULL, LVTCNPAUX_NORMAL, statusCodeInstead);
-        if (err != LOLAN_RETVAL_YES) return err;
+        if (err != LOLAN_RETVAL_YES) {   // fail
+          if (err == LOLAN_RETVAL_MEMERROR) {   // out of memory error (CBOR buffer is full)
+            lolanVarToCborNestedPath(ctx, 0, NULL, LVTCNPAUX_RESTORE, false);   // restore internal state of lolanVarToCborNestedPath() from storage 0
+            break;   // stop encoding
+          } else return err;   // other error
+        }
+        // (successfully added)
+        lolanVarToCborNestedPath(ctx, 1, NULL, LVTCNPAUX_BACKUP, false);   // backup internal state of lolanVarToCborNestedPath() to storage 1
+        err = lolanVarToCborNestedPath(ctx, 0, encoder, LVTCNPAUX_FINALIZE, statusCodeInstead);   // try to finalize (needed only for "fit in the buffer?" test, will be undone)
+        if (err != LOLAN_RETVAL_YES) {   // fail
+          if (err == LOLAN_RETVAL_MEMERROR) {   // out of memory error (CBOR buffer is full)
+            lolanVarToCborNestedPath(ctx, 0, NULL, LVTCNPAUX_RESTORE, false);   // restore internal state of lolanVarToCborNestedPath() from storage 0
+            // (the last variable encoding was undone)
+            break;   // stop encoding
+         } else return err;   // other error
+        }
+        // (successfully finalized)
+        lolanVarToCborNestedPath(ctx, 1, NULL, LVTCNPAUX_RESTORE, false);   // restore internal state of lolanVarToCborNestedPath() from storage 1
+        // (the finalization was undone)
       }
       if (auxflagset)
         ctx->regMap[i].flags |= LOLAN_REGMAP_AUX_BIT;   // set the auxiliary flag
@@ -1440,7 +1485,7 @@ int8_t lolanVarFlagToCbor(lolan_ctx *ctx, uint16_t flags, CborEncoder *encoder,
   }
   if (!first) {   // at least one variable was found
     // finalize CBOR tree
-    err = lolanVarToCborNestedPath(ctx, i, encoder, LVTCNPAUX_FINALIZE, statusCodeInstead);
+    err = lolanVarToCborNestedPath(ctx, 0, encoder, LVTCNPAUX_FINALIZE, statusCodeInstead);
     if (err != LOLAN_RETVAL_YES) return err;
     return LOLAN_RETVAL_YES;
   } else {   // no variable was found

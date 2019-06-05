@@ -10,3 +10,9 @@ What's new in version?
 ¤ name change: lolan_regVarUpdated -> lolan_isVarUpdated
 ¤ new function: lolan_getFlag
 ¤ facilitate processing for remotely updated variables (lolan_processUpdated)
+
+103:
+¤ change: prevent accidental modification of variable type with lolan_setFlag and lolan_clearFlag
+¤ new function: lolan_getIndex
+¤ new function: store additional data ("tag") for every LoLaN variable 
+¤ improved multi-INFORM: report the maximum number of variables fit in a packet

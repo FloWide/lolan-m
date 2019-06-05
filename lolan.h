@@ -13,7 +13,7 @@
 #include "lolan_config.h"
 
 
-#define LOLAN_VERSION      102    // LoLaN version number
+#define LOLAN_VERSION      103    // LoLaN version number
 
 
 /* common defines */
@@ -115,6 +115,9 @@ typedef struct {
   uint16_t flags;                   // flags (e.g. variable type)
   LV_SIZE_T size;                   // size in bytes
   void *data;                       // variable data
+#ifdef LOLAN_VARIABLE_TAG_TYPE
+  LOLAN_VARIABLE_TAG_TYPE tag;      // tag (to store auxiliary data if needed)
+#endif
 } lolan_RegMap;
 
 typedef struct {
@@ -138,7 +141,12 @@ extern int8_t lolan_isVarUpdated(lolan_ctx *ctx, const void *ptr, bool clearFlag
 extern int8_t lolan_processUpdated(lolan_ctx *ctx, bool clearFlag, lpuCallback callback);
 extern int8_t lolan_rmVar(lolan_ctx *ctx, const void *ptr);
 extern int8_t lolan_setFlag(lolan_ctx *ctx, const void *ptr, uint16_t flags);
+extern uint16_t lolan_getFlag(lolan_ctx *ctx, const void *ptr);
 extern int8_t lolan_clearFlag(lolan_ctx *ctx, const void *ptr, uint16_t flags);
+#ifdef LOLAN_VARIABLE_TAG_TYPE
+extern LOLAN_VARIABLE_TAG_TYPE* lolan_getTagPtr(lolan_ctx *ctx, const void *ptr);
+#endif
+extern LR_SIZE_T lolan_getIndex(lolan_ctx *ctx, bool isPath, const void *ptr_or_path, bool *errorOut);
 
 extern int8_t lolan_createPacket(const lolan_Packet *lp, uint8_t *buf,
                                  uint32_t maxSize, uint32_t *outputSize, bool withCRC);

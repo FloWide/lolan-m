@@ -13,6 +13,7 @@
 #define LOLAN_REGMAP_SIZE	       20    // the maximum number of registers to be mapped (maximum: 65535)
 #define LOLAN_REGMAP_DEPTH       3     // depth of register paths
 #define LOLAN_VARSIZE_BITS       8     // variable size storage bits (8, 16, 32  /default: 8/)
+#define LOLAN_VARIABLE_TAG_TYPE  int   // type of auxiliary field in the LoLaN register map structure (do not define to disable this feature)
 
 #define LOLAN_REGMAP_RECURSION         1       // the recursion depth for a LoLaN GET command (set 0 to refuse recursive requests)
 #define LOLAN_FORCE_GET_VERBOSE_REPLY  false   // force reply for a LoLaN GET command with key-value pair even if one variable is requested

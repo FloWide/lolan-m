@@ -133,7 +133,7 @@ int8_t lolan_regVar(lolan_ctx *ctx, const uint8_t *path, lolan_VarType vType, vo
  * @param[in] ctx
  *   Pointer to the LoLaN context variable.
  * @param[in] ptr
- *   Pointer of the variable data (the LoLaN variable will be identified
+ *   Address of the variable data (the LoLaN variable will be identified
  *   by this information).
  * @param[in] clearFlag
  *   If true, the remote update flag will be cleared.
@@ -221,7 +221,7 @@ int8_t lolan_processUpdated(lolan_ctx *ctx, bool clearFlag, lpuCallback callback
  * @param[in] ctx
  *   Pointer to the LoLaN context variable.
  * @param[in] ptr
- *   Pointer of the variable data (the LoLaN variable will be identified
+ *   Address of the variable data (the LoLaN variable will be identified
  *   by this information).
  * @return
  *   LOLAN_RETVAL_YES: the LoLaN variable has been removed succesfully.
@@ -251,7 +251,7 @@ int8_t lolan_rmVar(lolan_ctx *ctx, const void *ptr)
  * @param[in] ctx
  *   Pointer to the LoLaN context variable.
  * @param[in] ptr
- *   Pointer of the variable data (the LoLaN variable will be identified
+ *   Address of the variable data (the LoLaN variable will be identified
  *   by this information).
  * @param[in] flags
  *   The flags to be set.
@@ -267,7 +267,7 @@ int8_t lolan_setFlag(lolan_ctx *ctx, const void *ptr, uint16_t flags)
   for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
     if (ctx->regMap[i].p[0] != 0) {   // (skip free entries)
       if (ctx->regMap[i].data == ptr) {    // variable is found by data pointer
-        ctx->regMap[i].flags |= flags;      // set flags
+        ctx->regMap[i].flags |= (flags & ~LOLAN_REGMAP_TYPE_MASK);      // set flags (type cannot be modified)
         return LOLAN_RETVAL_YES;
       }
     }
@@ -282,7 +282,7 @@ int8_t lolan_setFlag(lolan_ctx *ctx, const void *ptr, uint16_t flags)
  * @param[in] ctx
  *   Pointer to the LoLaN context variable.
  * @param[in] ptr
- *   Pointer of the variable data (the LoLaN variable will be identified
+ *   Address of the variable data (the LoLaN variable will be identified
  *   by this information).
  * @return
  *   Flags of the LoLaN variable (zero if no variable found).
@@ -308,7 +308,7 @@ uint16_t lolan_getFlag(lolan_ctx *ctx, const void *ptr)
  * @param[in] ctx
  *   Pointer to the LoLaN context variable.
  * @param[in] ptr
- *   Pointer of the variable data (the LoLaN variable will be identified
+ *   Address of the variable data (the LoLaN variable will be identified
  *   by this information).
  * @param[in] flags
  *   The flags to be cleared.
@@ -324,7 +324,7 @@ int8_t lolan_clearFlag(lolan_ctx *ctx, const void *ptr, uint16_t flags)
   for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
     if (ctx->regMap[i].p[0] != 0) {    // (skip free entries)
       if (ctx->regMap[i].data == ptr) {    // variable is found by data pointer
-        ctx->regMap[i].flags &= ~(flags);   // clear flags
+        ctx->regMap[i].flags &= ~(flags & ~LOLAN_REGMAP_TYPE_MASK);   // clear flags (type cannot be modified)
         return LOLAN_RETVAL_YES;
       }
     }
@@ -332,6 +332,75 @@ int8_t lolan_clearFlag(lolan_ctx *ctx, const void *ptr, uint16_t flags)
   /* no variable mapped to the specified address was found */
   return LOLAN_RETVAL_GENERROR;
 } /* lolan_clearFlag */
+
+#ifdef LOLAN_VARIABLE_TAG_TYPE
+/**************************************************************************//**
+ * @brief
+ *   Get pointer to a variable tag.
+ * @param[in] ctx
+ *   Pointer to the LoLaN context variable.
+ * @param[in] ptr
+ *   Address of the variable data (the LoLaN variable will be identified
+ *   by this information).
+ * @return
+ *   Pointer to the variable tag. (NULL if no LoLaN variable is
+ *   mapped to the specified memory address.)
+ *****************************************************************************/
+LOLAN_VARIABLE_TAG_TYPE* lolan_getTagPtr(lolan_ctx *ctx, const void *ptr)
+{
+  LR_SIZE_T i;
+
+  for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
+    if (ctx->regMap[i].p[0] != 0) {   // (skip free entries)
+      if (ctx->regMap[i].data == ptr) {    // variable is found by data pointer
+        return &(ctx->regMap[i].tag);      // return flags
+      }
+    }
+  }
+  /* no variable mapped to the specified address was found */
+  return NULL;
+} /* lolan_getTagPtr */
+#endif
+
+/**************************************************************************//**
+ * @brief
+ *   Get the register map index of a LoLaN variable.
+ * @note
+ *   Accessing register map entries directly is only recommended for
+ *   LoLaN experts! (:
+ * @param[in] ctx
+ *   Pointer to the LoLaN context variable.
+ * @param[in] isPath
+ *   If TRUE, the ptr_or_path input is handled as a variable path
+ *   (uint8_t array with LOLAN_REGMAP_DEPTH length). Otherwise, ptr_or_path
+ *   input is handled as a variable data pointer.
+ * @param[in] ptr_or_path
+ *   Pointer of the variable data, or variable path (the LoLaN variable
+ *   will be identified by this information). See isPath input.
+ * @param[out] errorOut
+ *   If assigned (not NULL), this variable will be set to TRUE on error,
+ *   FALSE on success.
+ * @return
+ *   The register map index. (LOLAN_REGMAP_SIZE on error)
+ *****************************************************************************/
+LR_SIZE_T lolan_getIndex(lolan_ctx *ctx, bool isPath, const void *ptr_or_path,
+                         bool *errorOut)
+{
+  LR_SIZE_T i;
+
+  for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
+    if (ctx->regMap[i].p[0] != 0) {    // (skip free entries)
+      if (    (!isPath && (ctx->regMap[i].data == ptr_or_path))     // variable is found by data pointer
+           || ( isPath && (memcmp(ctx->regMap[i].p, ptr_or_path, LOLAN_REGMAP_DEPTH) == 0)) ) {   // variable is found by path
+        if (errorOut != NULL) *errorOut = false;
+        return i;
+      }
+    }
+  }
+  /* no variable mapped to the specified address / with the specified path was found */
+  if (errorOut != NULL) *errorOut = true;
+  return LOLAN_REGMAP_SIZE;
+} /* lolan_getIndex */
 
 /**************************************************************************//**
  * @brief
