@@ -447,6 +447,7 @@ int8_t lolan_processSet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply)
 
   reply->packetCounter = pak->packetCounter;
   reply->packetType = ACK_PACKET;
+  if (LOLAN_COPY_ROUTINGREQUEST_ON_ACK) reply->routingRequested = pak->routingRequested;
   reply->fromId = ctx->myAddress;
   reply->toId = pak->fromId;
   reply->payloadSize = cbor_encoder_get_buffer_size(&enc, reply->payload);

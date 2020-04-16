@@ -277,6 +277,7 @@ int8_t lolan_processGet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply)
   /* fill the reply packet structure */
   reply->packetCounter = pak->packetCounter;   // the packetCounter value for the reply should be the same as the request's
   reply->packetType = ACK_PACKET;
+  if (LOLAN_COPY_ROUTINGREQUEST_ON_ACK) reply->routingRequested = pak->routingRequested;
   reply->fromId = ctx->myAddress;   // from us
   reply->toId = pak->fromId;        // back to the sender of the request
   reply->payloadSize = cbor_encoder_get_buffer_size(&enc, reply->payload);   // get the CBOR data size

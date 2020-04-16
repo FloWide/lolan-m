@@ -22,5 +22,6 @@ What's new in version?
 ¤ change: lolan_setFlag and lolan_clearFlag can modify only user flags
 ¤ change: use size_t instead of uint32_t in lolan_createPacket, lolan_parsePacket
 ¤ new function: lolan_createInformEx for advanced INFORM generation
-¤ LP_SIZE_T type to internally represent packet & payload size
 ¤ new feature: variable length transmission and reception of LOLAN_DATA
+¤ new option: can copy the routing request flag from the source packet when replying to a GET or SET
+¤ LP_SIZE_T type to internally represent packet & payload size
