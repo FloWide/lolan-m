@@ -1,9 +1,8 @@
 /**************************************************************************//**
  * @file lolan-get.c
  * @brief LoLaN GET functions
- * @author OMTLAB Kft.
+ * @author Sunstone-RTLS Ltd.
  ******************************************************************************/
-
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
@@ -139,7 +138,7 @@ int8_t lolan_processGet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply)
   }
 
   /* extract (base) path */
-  err = getZeroKeyEntryFromPayload(pak, path, NULL, NULL);
+  err = lolanGetZeroKeyEntryFromPayload(pak, path, NULL, NULL);
   switch (err)  {
     case LOLAN_RETVAL_YES:   // path is got
       for (i = 0; i < LOLAN_REGMAP_DEPTH; i++) {
@@ -159,11 +158,11 @@ int8_t lolan_processGet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply)
       break;
   }
 
-  if (!isPathValid(path)) {   // check path formal validity
+  if (!lolanIsPathValid(path)) {   // check path formal validity
     DLOG(("\n Formally invalid path in request."));
     return LOLAN_RETVAL_GENERROR;
   }
-  pathDefinitionLevel(ctx, path, &occ, true);  // obtain the number of variable occurrences
+  lolanPathDefinitionLevel(ctx, path, &occ, true);  // obtain the number of variable occurrences
 
   cbor_encoder_init(&enc, reply->payload, LOLAN_PACKET_MAX_PAYLOAD_SIZE, 0);  // initialize CBOR encoder for the reply
 
@@ -321,8 +320,8 @@ int8_t lolan_createGet(lolan_ctx *ctx, lolan_Packet *pak, uint8_t *path)
   uint8_t i, defLvl;
 
   /* check path */
-  if (!isPathValid(path)) return LOLAN_RETVAL_GENERROR;    // invalid
-  defLvl = pathDefinitionLevel(NULL, path, NULL, false);   // get definition level
+  if (!lolanIsPathValid(path)) return LOLAN_RETVAL_GENERROR;    // invalid
+  defLvl = lolanPathDefinitionLevel(NULL, path, NULL, false);   // get definition level
 
   /* encode GET request */
   cbor_encoder_init(&enc, pak->payload, LOLAN_PACKET_MAX_PAYLOAD_SIZE, 0);  // initialize CBOR encoder for the request

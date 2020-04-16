@@ -1,9 +1,8 @@
 /**************************************************************************//**
  * @file lolan-inform.c
  * @brief LoLaN INFORM functions
- * @author OMTLAB Kft.
+ * @author Sunstone-RTLS Ltd.
  ******************************************************************************/
-
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
@@ -79,38 +78,40 @@
 
 /**************************************************************************//**
  * @brief
- *   Check for modified variables and create a LoLaN INFORM packet if needed.
- * @details
- *   This subroutine searches for variables where the
- *   LOLAN_REGMAP_LOCAL_UPDATE_BIT flag is set, and creates a LoLaN INFORM
- *   packet reporting (one/all of) these variables. If too many
- *   variables are affected (LoLaN packet size limit), a
- *   LOLAN_RETVAL_MEMERROR will be returned. In this case the subroutine
- *   should be called again disabling multiple reporting.
- * @note
- *   In the output packet structure the payload parameter should be
- *   assigned to a buffer with a minimum length of
- *   LOLAN_PACKET_MAX_PAYLOAD_SIZE!
+ *   Make INFORM payload from the selected variables.
  * @param[in] ctx
  *   Pointer to the LoLaN context variable.
- * @param[out] pak
- *   Pointer to the output LoLaN packet structure in which the INFORM
- *   will be generated.
+ * @param[out] payload
+ *   Pointer to the buffer in which the INFORM payload will be generated.
+ *   The buffer size should be at least LOLAN_PACKET_MAX_PAYLOAD_SIZE
+ *   when plSizeOverride is zero, otherwise at least plSizeOverride.
+ * @param[out] payloadSize
+ *   Size of the INFORM payload generated in the buffer.
  * @param[in] multi
  *   Set this parameter to TRUE to allow multiple reporting. If FALSE,
  *   only a single variable will be reported in an INFORM packet.
+ * @param[in] secondary
+ *   FALSE = normal operation, report variables with
+ *           LOLAN_REGMAP_INFORM_REQUEST_BIT and LOLAN_REGMAP_LOCAL_UPDATE_BIT
+ *           flags set, clear LOLAN_REGMAP_LOCAL_UPDATE_BIT on success
+ *   TRUE  = secondary operation, report variables with
+ *           LOLAN_REGMAP_INFORMSEC_REQUEST_BIT flag set, clear it on success
+ * @param[in] plSizeOverride
+ *   Override LOLAN_PACKET_MAX_PAYLOAD_SIZE with the specified value.
+ *   Set to zero to disable this feature.
  * @return
- *    LOLAN_RETVAL_YES: A LoLaN INFORM packet is filled in the reply
- *      packet structure. Other variables may be present to INFORM,
+ *    LOLAN_RETVAL_YES: A LoLaN INFORM payload is successfully created.
+ *      Other variables may be present to INFORM,
  *      call again to ensure that no other variables should be
  *      reported (returning LOLAN_RETVAL_NO).
  *    LOLAN_RETVAL_NO: No variables to be reported.
  *    LOLAN_RETVAL_GENERROR: An error has occurred.
  *    LOLAN_RETVAL_CBORERROR: A CBOR-related error has occurred.
- *    LOLAN_RETVAL_MEMERROR: CBOR out of memory error (too much data is
- *      requested in one step). Disable multiple reporting and try again!
+ *    LOLAN_RETVAL_MEMERROR: CBOR out of memory error.
  ******************************************************************************/
-int8_t lolan_createInform(lolan_ctx *ctx, lolan_Packet *pak, bool multi) {
+static inline int8_t lolan_createInform_internal(lolan_ctx *ctx, uint8_t *payload,
+          LP_SIZE_T *payloadSize, bool multi, bool secondary, LP_SIZE_T plSizeOverride)
+{
   LR_SIZE_T i, count;
   uint8_t defLvl, bpath[LOLAN_REGMAP_DEPTH-1];
   bool dlbpsame;
@@ -120,7 +121,9 @@ int8_t lolan_createInform(lolan_ctx *ctx, lolan_Packet *pak, bool multi) {
   CborError cerr;
   CborEncoder enc, map_enc, array_enc;
 
-  const uint16_t flags = LOLAN_REGMAP_LOCAL_UPDATE_BIT + LOLAN_REGMAP_INFORM_REQUEST_BIT;
+  const uint16_t flags =  !secondary  ?  LOLAN_REGMAP_LOCAL_UPDATE_BIT + LOLAN_REGMAP_INFORM_REQUEST_BIT
+                             :  LOLAN_REGMAP_INFORMSEC_REQUEST_BIT;
+  const LP_SIZE_T maxPayloadSize =  plSizeOverride > 0  ?  plSizeOverride  :  LOLAN_PACKET_MAX_PAYLOAD_SIZE;
 
   /* count the number of locally updated variables with INFORM request */
   count = lolanVarFlagCount(ctx, flags, &dlbpsame, &defLvl, bpath);
@@ -130,7 +133,7 @@ int8_t lolan_createInform(lolan_ctx *ctx, lolan_Packet *pak, bool multi) {
   for (i = 0; i < LOLAN_REGMAP_SIZE; i++)
     ctx->regMap[i].flags &= ~(LOLAN_REGMAP_AUX_BIT);
 
-  cbor_encoder_init(&enc, pak->payload, LOLAN_PACKET_MAX_PAYLOAD_SIZE, 0);  // initialize CBOR encoder for the pak
+  cbor_encoder_init(&enc, payload, maxPayloadSize, 0);  // initialize CBOR encoder for the pak
 
   if (!dlbpsame || LOLAN_FORCE_NEW_STYLE_INFORM) {   // new style inform
     cerr = cbor_encoder_create_map(&enc, &map_enc, CborIndefiniteLength);   // create root map
@@ -234,7 +237,7 @@ int8_t lolan_createInform(lolan_ctx *ctx, lolan_Packet *pak, bool multi) {
             break;   // stop encoding
           }
         }
-        if (!first && (LOLAN_PACKET_MAX_PAYLOAD_SIZE < cbor_encoder_get_buffer_size(&enc, pak->payload) + 1)) {   // 1 is the size of indefinite length container terminator (BreakByte)
+        if (!first && (maxPayloadSize < cbor_encoder_get_buffer_size(&enc, payload) + 1)) {   // 1 is the size of indefinite length container terminator (BreakByte)
           // no remaining buffer space to close the indefinite length root map (not after the first variable)
           map_enc = map_enc_bak;   // restore CBOR encoder variable (state) from back-up
           break;   // stop encoding
@@ -251,22 +254,134 @@ int8_t lolan_createInform(lolan_ctx *ctx, lolan_Packet *pak, bool multi) {
     }
   }
 
-  /* reset LOLAN_REGMAP_LOCAL_UPDATE_BIT flags (on variables marked with LOLAN_REGMAP_AUX_BIT)  */
+  /* reset LOLAN_REGMAP_LOCAL_UPDATE_BIT / LOLAN_REGMAP_INFORMSEC_REQUEST_BIT flags (on variables marked with LOLAN_REGMAP_AUX_BIT) */
   for (i = 0; i < LOLAN_REGMAP_SIZE; i++)
-    if (ctx->regMap[i].flags & LOLAN_REGMAP_AUX_BIT)   // auxiliary flag
-      ctx->regMap[i].flags &= ~(LOLAN_REGMAP_LOCAL_UPDATE_BIT);   // reset local update flag
+    if (ctx->regMap[i].flags & LOLAN_REGMAP_AUX_BIT) {   // auxiliary flag
+      if (!secondary)   // normal request
+        ctx->regMap[i].flags &= ~(LOLAN_REGMAP_LOCAL_UPDATE_BIT);   // reset local update flag
+      else   // secondary request
+        ctx->regMap[i].flags &= ~(LOLAN_REGMAP_INFORMSEC_REQUEST_BIT);   // reset INFORMSEC flag
+    }
 
-  /* fill the reply packet structure */
-  pak->packetCounter = ctx->packetCounter++;   // the packet counter of the context is copied (and incremented)
-  pak->packetType = LOLAN_INFORM;
-  pak->fromId = ctx->myAddress;
-  pak->toId = LOLAN_BROADCAST_ADDRESS;
-  pak->ackRequired = false;
-  pak->payloadSize = cbor_encoder_get_buffer_size(&enc, pak->payload);   // get the CBOR data size
-  DLOG(("\n Encoded INFORM to %d bytes", pak->payloadSize));
+  /* compute payload size */
+  *payloadSize = cbor_encoder_get_buffer_size(&enc, payload);   // get the CBOR data size
+  DLOG(("\n Encoded INFORM to %d bytes", *payloadSize));
 
   return LOLAN_RETVAL_YES;
+} /* lolan_createInform_internal */
+
+/**************************************************************************//**
+ * @brief
+ *   Check for modified variables and create a LoLaN INFORM packet
+ *   if needed.
+ * @details
+ *   This subroutine searches for variables where the
+ *   LOLAN_REGMAP_INFORM_REQUEST_BIT and LOLAN_REGMAP_LOCAL_UPDATE_BIT
+ *   flags are set, and creates a LoLaN INFORM
+ *   packet reporting (one/all of) these variables. If too many
+ *   variables are affected (LoLaN packet size limit) in multi-report,
+ *   consecutive calls are needed to report them.
+ *   LOLAN_REGMAP_LOCAL_UPDATE_BIT flag will be cleared on successfully
+ *   reported variables.
+ * @note
+ *   In the output packet structure the payload parameter should be
+ *   assigned to a buffer with a minimum length of
+ *   LOLAN_PACKET_MAX_PAYLOAD_SIZE!
+ * @param[in] ctx
+ *   Pointer to the LoLaN context variable.
+ * @param[out] pak
+ *   Pointer to the output LoLaN packet structure in which the INFORM
+ *   will be generated.
+ * @param[in] multi
+ *   Set this parameter to TRUE to allow multiple reporting. If FALSE,
+ *   only a single variable will be reported in an INFORM packet.
+ * @return
+ *    LOLAN_RETVAL_YES: A LoLaN INFORM packet is filled in the output
+ *      packet structure. Other variables may be present to INFORM,
+ *      call again to ensure that no other variables should be
+ *      reported (returning LOLAN_RETVAL_NO).
+ *    LOLAN_RETVAL_NO: No variables to be reported.
+ *    LOLAN_RETVAL_GENERROR: An error has occurred.
+ *    LOLAN_RETVAL_CBORERROR: A CBOR-related error has occurred.
+ *    LOLAN_RETVAL_MEMERROR: CBOR out of memory error (too much data is
+ *      requested in one step). Disable multiple reporting and try again!
+ ******************************************************************************/
+int8_t lolan_createInform(lolan_ctx *ctx, lolan_Packet *pak, bool multi)
+{
+  int8_t retval;
+
+  retval = lolan_createInform_internal(ctx, pak->payload, &pak->payloadSize, multi, false, 0);   // invoke internal function
+  if (retval == LOLAN_RETVAL_YES) {   // INFORM payload is created, fill other data
+    /* fill the packet structure */
+    pak->packetCounter = ctx->packetCounter++;   // the packet counter of the context is copied (and incremented)
+    pak->packetType = LOLAN_INFORM;
+    pak->fromId = ctx->myAddress;
+    pak->toId = LOLAN_BROADCAST_ADDRESS;
+    pak->ackRequired = false;
+    pak->packetRouted = false;
+  }
+  return retval;
 } /* lolan_createInform */
+
+/**************************************************************************//**
+ * @brief
+ *   Check for modified variables and create a LoLaN INFORM packet
+ *   if needed.  EXTENDED VERSION
+ * @details
+ *   The same as lolan_createInform, but with advanced settings.
+ * @note
+ *   In the output packet structure the payload parameter should be
+ *   assigned to a buffer with a minimum length of
+ *   LOLAN_PACKET_MAX_PAYLOAD_SIZE (or plSizeOverride)!
+ * @param[in] ctx
+ *   Pointer to the LoLaN context variable.
+ * @param[out] pak
+ *   Pointer to the output LoLaN packet structure in which the INFORM
+ *   will be generated.
+ * @param[in] multi
+ *   Set this parameter to TRUE to allow multiple reporting. If FALSE,
+ *   only a single variable will be reported in an INFORM packet.
+ * @param[in] secondary
+ *   FALSE = normal operation, report variables with
+ *           LOLAN_REGMAP_INFORM_REQUEST_BIT and LOLAN_REGMAP_LOCAL_UPDATE_BIT
+ *           flags set, clear LOLAN_REGMAP_LOCAL_UPDATE_BIT on success
+ *   TRUE  = secondary operation, report variables with
+ *           LOLAN_REGMAP_INFORMSEC_REQUEST_BIT flag set, clear it on success
+ * @param[in] plSizeOverride
+ *   Override LOLAN_PACKET_MAX_PAYLOAD_SIZE with the specified value.
+ *   Set to zero to disable this feature.
+ * @param[in] payloadOnly
+ *   Creates only an INFORM payload (fills only payload and payloadSize
+ *   fields of the output packet structure).
+ * @return
+ *    LOLAN_RETVAL_YES: A LoLaN INFORM packet is filled in the output
+ *      packet structure. Other variables may be present to INFORM,
+ *      call again to ensure that no other variables should be
+ *      reported (returning LOLAN_RETVAL_NO).
+ *    LOLAN_RETVAL_NO: No variables to be reported.
+ *    LOLAN_RETVAL_GENERROR: An error has occurred.
+ *    LOLAN_RETVAL_CBORERROR: A CBOR-related error has occurred.
+ *    LOLAN_RETVAL_MEMERROR: CBOR out of memory error (too much data is
+ *      requested in one step). Disable multiple reporting and try again!
+ ******************************************************************************/
+int8_t lolan_createInformEx(lolan_ctx *ctx, lolan_Packet *pak, bool multi,
+          bool secondary, LP_SIZE_T plSizeOverride, bool payloadOnly)
+{
+  int8_t retval;
+
+  retval = lolan_createInform_internal(ctx, pak->payload, &pak->payloadSize, multi,
+                secondary, plSizeOverride);   // invoke internal function
+  if (retval == LOLAN_RETVAL_YES && !payloadOnly) {   // INFORM payload is created, fill other data (if needed)
+    /* fill the packet structure */
+    pak->packetCounter = ctx->packetCounter++;   // the packet counter of the context is copied (and incremented)
+    pak->packetType = LOLAN_INFORM;
+    pak->fromId = ctx->myAddress;
+    pak->toId = LOLAN_BROADCAST_ADDRESS;
+    pak->ackRequired = false;
+    pak->packetRouted = false;
+  }
+  return retval;
+} /* lolan_createInformEx */
 
 
 // TODO: lolan_processInform()

@@ -1,9 +1,8 @@
 /**************************************************************************//**
  * @file lolan-set.c
  * @brief LoLaN SET functions
- * @author OMTLAB Kft.
+ * @author Sunstone-RTLS Ltd.
  ******************************************************************************/
-
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
@@ -177,7 +176,8 @@
  *      LoLaN SET packet).
  *    LOLAN_RETVAL_CBORERROR: A CBOR-related error has occurred.
  *****************************************************************************/
-int8_t lolan_processSet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply) {
+int8_t lolan_processSet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply)
+{
   LR_SIZE_T i;
   int8_t err;
   uint8_t path[LOLAN_REGMAP_DEPTH], defLvl;
@@ -203,7 +203,7 @@ int8_t lolan_processSet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply) 
   }
 
   /* extract (base) path */
-  err = getZeroKeyEntryFromPayload(pak, path, &zerovalue, &oldStyle);   // (Old Style if a base path is specified)
+  err = lolanGetZeroKeyEntryFromPayload(pak, path, &zerovalue, &oldStyle);   // (Old Style if a base path is specified)
   switch (err)  {
     case LOLAN_RETVAL_YES:   // zero key entry got
       /* (nothing to do here) */
@@ -229,14 +229,14 @@ int8_t lolan_processSet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply) 
     for (i = 0; i < LOLAN_REGMAP_DEPTH; i++) {   // print path to debug log
       DLOG(("/%d", path[i]));
     }
-    defLvl = pathDefinitionLevel(ctx, path, NULL, false);   // get path definition level
+    defLvl = lolanPathDefinitionLevel(ctx, path, NULL, false);   // get path definition level
     if (defLvl >= LOLAN_REGMAP_DEPTH) {   // path should be a base path
       DLOG(("\n LoLaN CBOR packet error: path should be a base path"));
       return LOLAN_RETVAL_GENERROR;
     }
 
     /* initialize and enter the root map */
-    if (!isPathValid(path)) {   // check path formal validity
+    if (!lolanIsPathValid(path)) {   // check path formal validity
       DLOG(("\n Formally invalid path in request."));
       return LOLAN_RETVAL_GENERROR;
     }

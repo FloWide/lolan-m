@@ -1,9 +1,8 @@
 /**************************************************************************//**
  * @file lolan-simple.c
  * @brief LoLaN simple master functions
- * @author OMTLAB Kft.
+ * @author Sunstone-RTLS Ltd.
  ******************************************************************************/
-
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -40,7 +39,7 @@
  *   LOLAN_RETVAL_GENERROR: An error has occurred.
  *   LOLAN_RETVAL_CBORERROR: A CBOR-related error has occurred.
  *****************************************************************************/
-int8_t lolan_seekAndGet(lolan_Packet *pak, const uint8_t *rpath, uint8_t *data,
+static int8_t lolan_seekAndGet(lolan_Packet *pak, const uint8_t *rpath, uint8_t *data,
           LV_SIZE_T data_max, LV_SIZE_T *data_len, uint8_t *type)
 {
   uint8_t path[LOLAN_REGMAP_DEPTH];
@@ -152,8 +151,8 @@ int8_t lolan_simpleCreateSet(lolan_ctx *ctx, lolan_Packet *pak, const uint8_t *p
   int8_t err;
 
   /* check path */
-  if (!isPathValid(path)) return LOLAN_RETVAL_GENERROR;    // invalid
-  defLvl = pathDefinitionLevel(NULL, path, NULL, false);   // get definition level
+  if (!lolanIsPathValid(path)) return LOLAN_RETVAL_GENERROR;    // invalid
+  defLvl = lolanPathDefinitionLevel(NULL, path, NULL, false);   // get definition level
   if (defLvl == 0) return LOLAN_RETVAL_GENERROR;   // {0, 0, ...} can not be an exact variable path
 
   /* encode SET request (old style) */
@@ -259,7 +258,7 @@ int8_t lolan_simpleProcessAck(lolan_Packet *pak, uint8_t *data, LV_SIZE_T data_m
     return lolanGetDataFromCbor(&it, data, data_max, data_len, type);   // try to get data
   } else {   // root map found
     /* search for zero key entry */
-    err = getZeroKeyEntryFromPayload(pak, NULL, &zerovalue, NULL);   // (path in zero key entry is not acceptable)
+    err = lolanGetZeroKeyEntryFromPayload(pak, NULL, &zerovalue, NULL);   // (path in zero key entry is not acceptable)
     if (err != LOLAN_RETVAL_YES) return LOLAN_RETVAL_GENERROR;   // zero key entry with integer data must exist
     /* look for other entries */
     err = lolan_seekAndGet(pak, NULL, data, data_max, data_len, type);   // try to detect any data
@@ -326,7 +325,7 @@ int8_t lolan_simpleExtractFromInform(lolan_Packet *pak, const uint8_t *path, uin
   if (data_max != 0 && data_max < 8) return LOLAN_RETVAL_GENERROR;  // (see description of data_max)
 
   /* get base path or code from zero key entry */
-  err = getZeroKeyEntryFromPayload(pak, xpath, &zerovalue, &isPath);
+  err = lolanGetZeroKeyEntryFromPayload(pak, xpath, &zerovalue, &isPath);
   switch (err) {
     case LOLAN_RETVAL_YES:   // zero key entry found
       break;
@@ -344,8 +343,8 @@ int8_t lolan_simpleExtractFromInform(lolan_Packet *pak, const uint8_t *path, uin
   if (isPath) {    // legacy style INFORM
     uint8_t i, defLvl, xdefLvl;
     /* pre-check path matching */
-    xdefLvl = pathDefinitionLevel(NULL, xpath, NULL, false);   // get base path definition level
-    defLvl = pathDefinitionLevel(NULL, path, NULL, false);   // get input path definition level
+    xdefLvl = lolanPathDefinitionLevel(NULL, xpath, NULL, false);   // get base path definition level
+    defLvl = lolanPathDefinitionLevel(NULL, path, NULL, false);   // get input path definition level
     if (xdefLvl + 1 != defLvl) return LOLAN_RETVAL_NO;   // INFORM path level is not compatible with the specified path
     for (i = 0; i < xdefLvl; i++)   // compare the specified path and base path
       if (path[i] != xpath[i]) return LOLAN_RETVAL_NO;   // mismatch, it is not possible to find data with the specified path

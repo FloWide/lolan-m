@@ -16,3 +16,11 @@ What's new in version?
 ¤ new function: lolan_getIndex
 ¤ new function: store additional data ("tag") for every LoLaN variable 
 ¤ improved multi-INFORM: report the maximum number of variables fit in a packet
+
+104:
+¤ minor changes in function names, static etc. to avoid incidental conflicts
+¤ change: lolan_setFlag and lolan_clearFlag can modify only user flags
+¤ change: use size_t instead of uint32_t in lolan_createPacket, lolan_parsePacket
+¤ new function: lolan_createInformEx for advanced INFORM generation
+¤ LP_SIZE_T type to internally represent packet & payload size
+¤ new feature: variable length transmission and reception of LOLAN_DATA

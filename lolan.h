@@ -1,9 +1,8 @@
 /**************************************************************************//**
  * @file lolan.h
  * @brief LoLaN core functions
- * @author OMTLAB Kft.
+ * @author Sunstone-RTLS Ltd.
  ******************************************************************************/
-
 #ifndef LOLAN_H_
 #define LOLAN_H_
 
@@ -13,7 +12,7 @@
 #include "lolan_config.h"
 
 
-#define LOLAN_VERSION      103    // LoLaN version number
+#define LOLAN_VERSION      104    // LoLaN version number
 
 
 /* common defines */
@@ -21,46 +20,45 @@
 #define LOLAN_BROADCAST_ADDRESS                    0xFFFF   // address for broadcast
 
 /* size defines */
-#if LOLAN_REGMAP_SIZE < 256   // register map size related storage format
-#define LR_SIZE_T   uint8_t   // 8-bit
-#elif LOLAN_REGMAP_SIZE < 65536
-#define LR_SIZE_T   uint16_t  // 16-bit
+#if LOLAN_REGMAP_SIZE <= UINT8_MAX   // integer type to represent register map size
+  #define LR_SIZE_T    uint8_t   // 8-bit
+#elif LOLAN_REGMAP_SIZE <= UINT16_MAX
+  #define LR_SIZE_T    uint16_t  // 16-bit
 #endif
 
-#if LOLAN_VARSIZE_BITS == 8   // LoLaN variable size related storage format
-#define LV_SIZE_T    uint8_t   // 8-bit
-#define LV_SIZE_MAX  UINT8_MAX
+#if LOLAN_VARSIZE_BITS == 8   // integer type to represent LoLaN variable size
+  #define LV_SIZE_T    uint8_t   // 8-bit
+  #define LV_SIZE_MAX  UINT8_MAX
 #elif LOLAN_VARSIZE_BITS == 16
-#define LV_SIZE_T   uint16_t  // 16-bit
-#define LV_SIZE_MAX  UINT16_MAX
+  #define LV_SIZE_T    uint16_t  // 16-bit
+  #define LV_SIZE_MAX  UINT16_MAX
 #elif (LOLAN_VARSIZE_BITS == 32) && (SIZE_MAX == UINT32_MAX)
-#define LV_SIZE_T   uint32_t  // 32-bit
-#define LV_SIZE_MAX  UINT32_MAX
+  #define LV_SIZE_T    uint32_t  // 32-bit
+  #define LV_SIZE_MAX  UINT32_MAX
+#endif
+
+#ifndef LP_SIZE_T   // integer type to represent packet & payload size
+  #if LOLAN_MAX_PACKET_SIZE <= UINT8_MAX
+    #define LP_SIZE_T    uint8_t
+  #elif LOLAN_MAX_PACKET_SIZE <= UINT16_MAX
+    #define LP_SIZE_T    uint16_t
+  #elif LOLAN_MAX_PACKET_SIZE <= UINT32_MAX
+    #define LP_SIZE_T    uint32_t
+  #endif
 #endif
 
 /* LoLaN variable flags and masks */
-#define LOLAN_REGMAP_AUX_BIT                       0x8000
-#define LOLAN_REGMAP_REMOTE_UPDATE_OUTOFRANGE_BIT  0x0400
-#define LOLAN_REGMAP_REMOTE_UPDATE_MISMATCH_BIT    0x0200
-#define LOLAN_REGMAP_REMOTE_READONLY_BIT           0x0100
-#define LOLAN_REGMAP_LOCAL_UPDATE_BIT		           0x0080
-#define LOLAN_REGMAP_TRAP_REQUEST_BIT		           0x0040
-#define LOLAN_REGMAP_INFORM_REQUEST_BIT		         0x0020
-#define LOLAN_REGMAP_REMOTE_UPDATE_BIT		         0x0010
-#define LOLAN_REGMAP_TYPE_MASK                     0x000F
+#define LOLAN_REGMAP_AUX_BIT                        0x8000    // (internal use)
+#define LOLAN_REGMAP_REMOTE_UPDATE_OUTOFRANGE_BIT   0x0400    // (internal use)
+#define LOLAN_REGMAP_REMOTE_UPDATE_MISMATCH_BIT     0x0200    // (internal use)
+#define LOLAN_REGMAP_REMOTE_READONLY_BIT            0x0100    // (internal use)
+#define LOLAN_REGMAP_INFORMSEC_REQUEST_BIT          0x0080    // secondary INFORM request
+#define LOLAN_REGMAP_LOCAL_UPDATE_BIT               0x0040    // local update indicator
+#define LOLAN_REGMAP_INFORM_REQUEST_BIT             0x0020    // INFORM request
+#define LOLAN_REGMAP_REMOTE_UPDATE_BIT              0x0010    // remote update indicator
+#define LOLAN_REGMAP_USER_MASK                      0x00F0    // user flags mask
+#define LOLAN_REGMAP_TYPE_MASK                      0x000F    // variable type mask
 
-
-#define LOLAN_PACKET(packet) \
-	        lolan_Packet packet; \
-	        memset(&packet, 0, sizeof(lolan_Packet)); \
-	        uint8_t (packet ## _lolan_pl_buf)[LOLAN_MAX_PACKET_SIZE]; \
-	        memset((packet ## _lolan_pl_buf), 0, LOLAN_MAX_PACKET_SIZE); \
-	        packet.payload = (packet ## _lolan_pl_buf);
-
-
-#if defined (__cplusplus)
-extern "C" {
-#endif
 
 typedef enum {                 // return values for LoLaN functions
   LOLAN_RETVAL_YES = 1,             // yes/o.k.
@@ -107,13 +105,16 @@ typedef struct {
   uint16_t fromId;
   uint16_t toId;
   uint8_t *payload;
-  uint16_t payloadSize;
+  LP_SIZE_T payloadSize;
 } lolan_Packet;
 
 typedef struct {
   uint8_t p[LOLAN_REGMAP_DEPTH];    // LoLaN variable path
   uint16_t flags;                   // flags (e.g. variable type)
   LV_SIZE_T size;                   // size in bytes
+#ifdef LOLAN_ALLOW_VARLEN_LOLANDATA
+  LV_SIZE_T sizeActual;             // actual size in bytes (for LOLAN_DATA)
+#endif
   void *data;                       // variable data
 #ifdef LOLAN_VARIABLE_TAG_TYPE
   LOLAN_VARIABLE_TAG_TYPE tag;      // tag (to store auxiliary data if needed)
@@ -121,7 +122,7 @@ typedef struct {
 } lolan_RegMap;
 
 typedef struct {
-  uint16_t myAddress;
+  uint16_t myAddress;   // our LoLaN address in the context
   uint8_t packetCounter;    // counter for automatically generated packets (INFORM, reply to SET & GET)
   lolan_RegMap regMap[LOLAN_REGMAP_SIZE];
 //  void (*replyDeviceCallbackFunc)(uint8_t *buf, uint8_t size);    // (future plans)
@@ -148,15 +149,22 @@ extern LOLAN_VARIABLE_TAG_TYPE* lolan_getTagPtr(lolan_ctx *ctx, const void *ptr)
 #endif
 extern LR_SIZE_T lolan_getIndex(lolan_ctx *ctx, bool isPath, const void *ptr_or_path, bool *errorOut);
 
-extern int8_t lolan_createPacket(const lolan_Packet *lp, uint8_t *buf,
-                                 uint32_t maxSize, uint32_t *outputSize, bool withCRC);
-extern int8_t lolan_parsePacket(const uint8_t *pak, uint32_t pak_len, lolan_Packet *lp);
+#ifdef LOLAN_ALLOW_VARLEN_LOLANDATA
+extern int8_t lolan_setDataActualLength(lolan_ctx *ctx, const void *ptr, LV_SIZE_T len);
+extern LV_SIZE_T lolan_getDataActualLength(lolan_ctx *ctx, const void *ptr);
+#endif
+
+extern int8_t lolan_createPacket(const lolan_Packet *lp, uint8_t *buf, size_t maxSize,
+                size_t *outputSize, bool withCRC);
+extern int8_t lolan_parsePacket(const uint8_t *pak, size_t pak_len, lolan_Packet *lp);
 
 extern int8_t lolan_processGet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply);
 extern int8_t lolan_processSet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply);
 
 extern int8_t lolan_createGet(lolan_ctx *ctx, lolan_Packet *pak, uint8_t *path);
-extern int8_t lolan_createInform(lolan_ctx *ctx, lolan_Packet *reply, bool multi);
+extern int8_t lolan_createInform(lolan_ctx *ctx, lolan_Packet *pak, bool multi);
+extern int8_t lolan_createInformEx(lolan_ctx *ctx, lolan_Packet *pak, bool multi,
+                bool secondary, LP_SIZE_T plSizeOverride, bool payloadOnly);
 
 extern int8_t lolan_simpleCreateSet(lolan_ctx *ctx, lolan_Packet *pak, const uint8_t *path,
                 uint8_t *data, LV_SIZE_T data_len, lolan_VarType type);
@@ -164,11 +172,5 @@ extern int8_t lolan_simpleProcessAck(lolan_Packet *pak, uint8_t *data, LV_SIZE_T
                 LV_SIZE_T *data_len, uint8_t *type, bool *zerokey);
 extern int8_t lolan_simpleExtractFromInform(lolan_Packet *pak, const uint8_t *path, uint8_t *data,
                 LV_SIZE_T data_max, LV_SIZE_T *data_len, uint8_t *type);
-
-
-#if defined (__cplusplus)
-}
-#endif
-
 
 #endif /* LOLAN_H_ */

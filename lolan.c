@@ -1,17 +1,16 @@
 /**************************************************************************//**
  * @file lolan.c
  * @brief LoLaN core functions
- * @author OMTLAB Kft.
+ * @author Sunstone-RTLS Ltd.
  ******************************************************************************/
-
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <string.h>
 
 #include "lolan_config.h"
 #include "lolan.h"
 #include "lolan-utils.h"
-
 
 
 /**************************************************************************//**
@@ -94,7 +93,7 @@ int8_t lolan_regVar(lolan_ctx *ctx, const uint8_t *path, lolan_VarType vType, vo
       break;
   }
   /* check the specified path for formal error */
-  if (!isPathValid(path) || path[0] == 0) return LOLAN_RETVAL_GENERROR;
+  if (!lolanIsPathValid(path) || path[0] == 0) return LOLAN_RETVAL_GENERROR;
   /* check for duplicates */
   for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
     if (memcmp(ctx->regMap[i].p, path, LOLAN_REGMAP_DEPTH) == 0)   // the specified path already exists
@@ -103,7 +102,7 @@ int8_t lolan_regVar(lolan_ctx *ctx, const uint8_t *path, lolan_VarType vType, vo
       return LOLAN_RETVAL_GENERROR;
   }
   /* check for other invalid cases */
-  defLvl = pathDefinitionLevel(ctx, path, &occ, false);   // get the definition level and occurrences for it
+  defLvl = lolanPathDefinitionLevel(ctx, path, &occ, false);   // get the definition level and occurrences for it
   if (occ > 0) return LOLAN_RETVAL_GENERROR;   // e.g. add (1,2,2) then add (1,2,0)
   if (defLvl > 1) {
     for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
@@ -119,6 +118,9 @@ int8_t lolan_regVar(lolan_ctx *ctx, const uint8_t *path, lolan_VarType vType, vo
       ctx->regMap[i].flags = vType + (readOnly ? LOLAN_REGMAP_REMOTE_READONLY_BIT : 0);
       ctx->regMap[i].data = ptr;
       ctx->regMap[i].size = size;
+#ifdef LOLAN_ALLOW_VARLEN_LOLANDATA
+      ctx->regMap[i].sizeActual = size;   // actual data size is the same as variable size by default
+#endif
       lolan_regMapSort(ctx);   // sort the register map by path
       return LOLAN_RETVAL_YES;
     }
@@ -254,7 +256,7 @@ int8_t lolan_rmVar(lolan_ctx *ctx, const void *ptr)
  *   Address of the variable data (the LoLaN variable will be identified
  *   by this information).
  * @param[in] flags
- *   The flags to be set.
+ *   The flags to be set. Only user flags can be set with this function.
  * @return
  *   LOLAN_RETVAL_YES: the action was successful.
  *   LOLAN_RETVAL_GENERROR: no LoLaN variable is mapped to the specified
@@ -267,7 +269,7 @@ int8_t lolan_setFlag(lolan_ctx *ctx, const void *ptr, uint16_t flags)
   for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
     if (ctx->regMap[i].p[0] != 0) {   // (skip free entries)
       if (ctx->regMap[i].data == ptr) {    // variable is found by data pointer
-        ctx->regMap[i].flags |= (flags & ~LOLAN_REGMAP_TYPE_MASK);      // set flags (type cannot be modified)
+        ctx->regMap[i].flags |= (flags & LOLAN_REGMAP_USER_MASK);      // set flags (only user flags can be modified)
         return LOLAN_RETVAL_YES;
       }
     }
@@ -324,7 +326,7 @@ int8_t lolan_clearFlag(lolan_ctx *ctx, const void *ptr, uint16_t flags)
   for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
     if (ctx->regMap[i].p[0] != 0) {    // (skip free entries)
       if (ctx->regMap[i].data == ptr) {    // variable is found by data pointer
-        ctx->regMap[i].flags &= ~(flags & ~LOLAN_REGMAP_TYPE_MASK);   // clear flags (type cannot be modified)
+        ctx->regMap[i].flags &= ~(flags & LOLAN_REGMAP_USER_MASK);   // clear flags (only user flags can be modified)
         return LOLAN_RETVAL_YES;
       }
     }
@@ -402,6 +404,73 @@ LR_SIZE_T lolan_getIndex(lolan_ctx *ctx, bool isPath, const void *ptr_or_path,
   return LOLAN_REGMAP_SIZE;
 } /* lolan_getIndex */
 
+#ifdef LOLAN_ALLOW_VARLEN_LOLANDATA
+
+/**************************************************************************//**
+ * @brief
+ *   Set actual length of data in a LOLAN_DATA type variable.
+ * @param[in] ctx
+ *   Pointer to the LoLaN context variable.
+ * @param[in] ptr
+ *   Address of the variable data (the LoLaN variable will be identified
+ *   by this information).
+ * @param[in] len
+ *   Actual length of data. Should not be greater than the variable size.
+ * @return
+ *   LOLAN_RETVAL_YES: the action was successful.
+ *   LOLAN_RETVAL_GENERROR:
+ *     fail, possible reasons:
+ *       ¤ no LoLaN variable is mapped to the specified memory address
+ *       ¤ the variable type is not LOLAN_DATA
+ *       ¤ the specified size is invalid
+ *****************************************************************************/
+int8_t lolan_setDataActualLength(lolan_ctx *ctx, const void *ptr, LV_SIZE_T len)
+{
+  LR_SIZE_T i;
+
+  for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
+    if (ctx->regMap[i].p[0] != 0) {   // (skip free entries)
+      if (ctx->regMap[i].data == ptr) {    // variable is found by data pointer
+        if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) != LOLAN_DATA) break;  // only for DATA type
+        if (ctx->regMap[i].size < len || len == 0) break;  // actual size cannot be greater than variable size, and cannot be zero
+        ctx->regMap[i].sizeActual = len;
+        return LOLAN_RETVAL_YES;
+      }
+    }
+  }
+  /* no variable mapped to the specified address was found */
+  return LOLAN_RETVAL_GENERROR;
+} /* lolan_setDataActualLength */
+
+/**************************************************************************//**
+ * @brief
+ *   Get actual length of data in a LOLAN_DATA type variable.
+ * @param[in] ctx
+ *   Pointer to the LoLaN context variable.
+ * @param[in] ptr
+ *   Address of the variable data (the LoLaN variable will be identified
+ *   by this information).
+ * @return
+ *   Actual length of data. (0: error)
+ *****************************************************************************/
+LV_SIZE_T lolan_getDataActualLength(lolan_ctx *ctx, const void *ptr)
+{
+  LR_SIZE_T i;
+
+  for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
+    if (ctx->regMap[i].p[0] != 0) {   // (skip free entries)
+      if (ctx->regMap[i].data == ptr) {    // variable is found by data pointer
+        if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) != LOLAN_DATA) break;  // only for DATA type
+        return ctx->regMap[i].sizeActual;
+      }
+    }
+  }
+  /* no variable mapped to the specified address was found */
+  return 0;
+} /* lolan_getDataActualLength */
+
+#endif /* ifdef LOLAN_ALLOW_VARLEN_LOLANDATA */
+
 /**************************************************************************//**
  * @brief
  *   Output the binary representation of a LoLaN packet to the specified
@@ -413,7 +482,8 @@ LR_SIZE_T lolan_getIndex(lolan_ctx *ctx, bool isPath, const void *ptr_or_path,
  * @param[in] maxSize
  *   Specifies the maximum number of bytes allowed to be written to the
  *   output buffer to avoid buffer overflow. Set this parameter to zero
- *   if this limitation is not required.
+ *   if this limitation is not required; in this case
+ *   LOLAN_MAX_PACKET_SIZE will be the maximum packet size.
  * @param[out] outputSize
  *   Pointer to a number variable which receives the number of bytes
  *   written to the output buffer.
@@ -424,14 +494,16 @@ LR_SIZE_T lolan_getIndex(lolan_ctx *ctx, bool isPath, const void *ptr_or_path,
  *   LOLAN_RETVAL_GENERROR:  The packet size would exceed maxSize.
  *****************************************************************************/
 int8_t lolan_createPacket(const lolan_Packet *lp, uint8_t *buf,
-                          uint32_t maxSize, uint32_t *outputSize, bool withCRC)
+                   size_t maxSize, size_t *outputSize, bool withCRC)
 {
-  uint32_t size;
+  size_t size;
 
   /* pre-compute size */
   size = 7 + lp->payloadSize + (withCRC ? 2 : 0);
 
   /* error check */
+  if (size > LOLAN_MAX_PACKET_SIZE)   // should not be larger than this
+    return LOLAN_RETVAL_GENERROR;
   if (maxSize) {
     if (size > maxSize)   // the packet size would be larger than maxSize
       return LOLAN_RETVAL_GENERROR;
@@ -458,7 +530,7 @@ int8_t lolan_createPacket(const lolan_Packet *lp, uint8_t *buf,
 
   /* compute CRC if needed */
   if (withCRC) {
-    uint16_t crc16 = CRC_calc(buf, 7 + lp->payloadSize);   // compute CRC
+    uint16_t crc16 = lolan_CRC_calc(buf, 7 + lp->payloadSize);   // compute CRC
     buf[7 + lp->payloadSize]     = (crc16 >> 8) & 0xFF;
     buf[7 + lp->payloadSize + 1] =  crc16       & 0xFF;
   }
@@ -486,7 +558,7 @@ int8_t lolan_createPacket(const lolan_Packet *lp, uint8_t *buf,
  *   LOLAN_RETVAL_NO:        Not a LoLaN packet.
  *   LOLAN_RETVAL_GENERROR:  An error has occurred. (e.g. CRC error)
  *****************************************************************************/
-int8_t lolan_parsePacket(const uint8_t *pak, uint32_t pak_len, lolan_Packet *lp)
+int8_t lolan_parsePacket(const uint8_t *pak, size_t pak_len, lolan_Packet *lp)
 {
   /* error check */
   if (pak_len < 9)  // packet is too short
@@ -514,7 +586,7 @@ int8_t lolan_parsePacket(const uint8_t *pak, uint32_t pak_len, lolan_Packet *lp)
   if (lp->securityEnabled) {
     /* TODO: implement security */
   } else {
-    uint16_t crc16 = CRC_calc(pak, pak_len);
+    uint16_t crc16 = lolan_CRC_calc(pak, pak_len);
     if (crc16 != 0) {
       DLOG(("\n lolan_parsePacket(): CRC error"));
       DLOG(("\n CRC16: %04x", crc16));

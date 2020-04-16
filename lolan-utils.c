@@ -1,18 +1,17 @@
 /**************************************************************************//**
  * @file lolan-utils.c
  * @brief LoLaN utility functions
- * @author OMTLAB Kft.
+ * @author Sunstone-RTLS Ltd.
  ******************************************************************************/
-
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <string.h>
 
 #include "lolan_config.h"
 #include "lolan.h"
 #include "lolan-utils.h"
 #include "cbor.h"
-
 
 
 typedef enum {        // auxiliary enumeration for addCborItemNestedPath() function
@@ -22,6 +21,7 @@ typedef enum {        // auxiliary enumeration for addCborItemNestedPath() funct
   LVTCNPAUX_BACKUP,       // save the internal state of the function
   LVTCNPAUX_RESTORE     // restore the saved internal state of the function
 } lolanVarToCborNestedPath_aux;
+
 
 /**************************************************************************//**
  * @brief
@@ -36,7 +36,7 @@ typedef enum {        // auxiliary enumeration for addCborItemNestedPath() funct
  * @return
  *   True if the path is valid, otherwise false.
  ******************************************************************************/
-bool isPathValid(const uint8_t *path)
+bool lolanIsPathValid(const uint8_t *path)
 {
   LR_SIZE_T i;
   bool aux;
@@ -49,7 +49,7 @@ bool isPathValid(const uint8_t *path)
       if (aux) return false;   // other values under a zero part
   }
   return true;
-} /* isPathValid */
+} /* lolanIsPathValid */
 
 /**************************************************************************//**
  * @brief
@@ -81,7 +81,7 @@ bool isPathValid(const uint8_t *path)
  * @return
  *   The definition level of the specified path.
  ******************************************************************************/
-uint8_t pathDefinitionLevel(lolan_ctx *ctx, const uint8_t *path, LR_SIZE_T *occurrences, bool occ_maxrec)
+uint8_t lolanPathDefinitionLevel(lolan_ctx *ctx, const uint8_t *path, LR_SIZE_T *occurrences, bool occ_maxrec)
 {
   LR_SIZE_T i;
   uint8_t defLvl;
@@ -99,7 +99,7 @@ uint8_t pathDefinitionLevel(lolan_ctx *ctx, const uint8_t *path, LR_SIZE_T *occu
         if (!occ_maxrec)    // no restriction for maximum recursion depth
           (*occurrences)++;
           else {   // only variables within the maxiumum recursion level below the base path are counted
-            if (pathDefinitionLevel(NULL, ctx->regMap[i].p, NULL, false) <= defLvl + LOLAN_REGMAP_RECURSION)  // (recursive call)
+            if (lolanPathDefinitionLevel(NULL, ctx->regMap[i].p, NULL, false) <= defLvl + LOLAN_REGMAP_RECURSION)  // (recursive call)
               (*occurrences)++;
         }
       }
@@ -107,7 +107,7 @@ uint8_t pathDefinitionLevel(lolan_ctx *ctx, const uint8_t *path, LR_SIZE_T *occu
   }
 
   return defLvl;
-} /* pathDefinitionLevel */
+} /* lolanPathDefinitionLevel */
 
 /**************************************************************************//**
  * @brief
@@ -151,10 +151,10 @@ LR_SIZE_T lolanVarFlagCount(lolan_ctx *ctx, uint16_t flags, bool *dlbpsame,
       found++;
       if ((dlbpsame != NULL) && *dlbpsame) {  // if definition level and base path is the same so far (spare computing if not)
         if (found == 1) {  // first
-          defLvl = pathDefinitionLevel(ctx, ctx->regMap[i].p, NULL, false);  // get and store definition level
+          defLvl = lolanPathDefinitionLevel(ctx, ctx->regMap[i].p, NULL, false);  // get and store definition level
           memcpy(bpsave, ctx->regMap[i].p, defLvl-1);   // store base path
         } else {  // not first
-          if ( !( (pathDefinitionLevel(ctx, ctx->regMap[i].p, NULL, false) == defLvl)  // not the same definition level
+          if ( !( (lolanPathDefinitionLevel(ctx, ctx->regMap[i].p, NULL, false) == defLvl)  // not the same definition level
                   && (memcmp(ctx->regMap[i].p, bpsave, defLvl-1) == 0) ) )    //  or not the same base path
             *dlbpsame = false;   // clear indicator
         }
@@ -176,7 +176,7 @@ LR_SIZE_T lolanVarFlagCount(lolan_ctx *ctx, uint16_t flags, bool *dlbpsame,
  * @note
  *   FOR INTERNAL USE ONLY.
  ******************************************************************************/
-uint16_t getLolanSetStatusCodeForVariable(lolan_ctx *ctx, LR_SIZE_T index)
+static uint16_t getLolanSetStatusCodeForVariable(lolan_ctx *ctx, LR_SIZE_T index)
 {
   if (ctx->regMap[index].flags & LOLAN_REGMAP_AUX_BIT) {
     if (ctx->regMap[index].flags & LOLAN_REGMAP_REMOTE_UPDATE_BIT)
@@ -195,7 +195,7 @@ uint16_t getLolanSetStatusCodeForVariable(lolan_ctx *ctx, LR_SIZE_T index)
  * @brief
  *   Helper function for lolan_regMapSort().
  ******************************************************************************/
-void lolan_regMapSwap(lolan_RegMap *entry1, lolan_RegMap *entry2)
+static inline void lolan_regMapSwap(lolan_RegMap *entry1, lolan_RegMap *entry2)
 {
   lolan_RegMap tmp = *entry1;
   *entry1 = *entry2;
@@ -245,7 +245,7 @@ void lolan_regMapSort(lolan_ctx *ctx)
  *   LOLAN_RETVAL_GENERROR:   A general error has occurred.
  *   LOLAN_RETVAL_CBORERROR:  A CBOR error has occurred.
  ******************************************************************************/
-int8_t getPathFromCbor(uint8_t *path, CborValue *it)
+int8_t lolanGetPathFromCbor(uint8_t *path, CborValue *it)
 {
   uint8_t cnt;
   CborValue ait;
@@ -287,7 +287,7 @@ int8_t getPathFromCbor(uint8_t *path, CborValue *it)
   if (err != CborNoError) return LOLAN_RETVAL_CBORERROR;
 
   return LOLAN_RETVAL_YES;
-} /* getPathFromCbor */
+} /* lolanGetPathFromCbor */
 
 /**************************************************************************//**
  * @brief
@@ -320,7 +320,7 @@ int8_t getPathFromCbor(uint8_t *path, CborValue *it)
  *   LOLAN_RETVAL_GENERROR:   A general error has occurred.
  *   LOLAN_RETVAL_CBORERROR:  A CBOR error has occurred.
  ******************************************************************************/
-int8_t getZeroKeyEntryFromPayload(const lolan_Packet *lp, uint8_t *path, uint16_t *value, bool *isPath)
+int8_t lolanGetZeroKeyEntryFromPayload(const lolan_Packet *lp, uint8_t *path, uint16_t *value, bool *isPath)
 {
   CborParser parser;
   CborValue it, rit;
@@ -355,7 +355,7 @@ int8_t getZeroKeyEntryFromPayload(const lolan_Packet *lp, uint8_t *path, uint16_
       if (cbor_value_is_container(&rit)) {   // the next item is a container
         if (path == NULL) return LOLAN_RETVAL_GENERROR;   // if no path is acceptable -> error
         if (isPath) *isPath = true;   // it may be a path
-        return getPathFromCbor(path, &rit);
+        return lolanGetPathFromCbor(path, &rit);
       } else {
         if (cbor_value_is_unsigned_integer(&rit)) {   // the next item is an unsigned integer
           if (value == NULL) return LOLAN_RETVAL_GENERROR;   // if no integer is acceptable -> error
@@ -375,7 +375,7 @@ int8_t getZeroKeyEntryFromPayload(const lolan_Packet *lp, uint8_t *path, uint16_
   }
 
   return LOLAN_RETVAL_NO;  // at this point no zero key entry was found
-} /* getZeroKeyEntryFromPayload */
+} /* lolanGetZeroKeyEntryFromPayload */
 
 /**************************************************************************//**
  * @brief
@@ -762,7 +762,11 @@ int8_t lolanVarUpdateFromCbor(lolan_ctx *ctx, const uint8_t *path, CborValue *it
         size_t len;
         cerr = cbor_value_calculate_string_length(it, &len);   // calculate CBOR string length
         if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+#ifdef LOLAN_ALLOW_VARLEN_LOLANDATA
+        if (ctx->regMap[i].size < len || len == 0) {  // length must be non-zero and less-or-equal than variable size
+#else
         if (ctx->regMap[i].size != len) {  // arbitrary data should be exactly the same length when setting
+#endif
           cerr = cbor_value_advance(it);   // advance CBOR iterator
           if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
           if (error) *error = LVUFC_OUTOFRANGE;
@@ -771,6 +775,9 @@ int8_t lolanVarUpdateFromCbor(lolan_ctx *ctx, const uint8_t *path, CborValue *it
         }
         len = ctx->regMap[i].size;
         cbor_value_copy_byte_string(it, ctx->regMap[i].data, &len, it);   // update value (the CBOR iterator is also advanced)
+#ifdef LOLAN_ALLOW_VARLEN_LOLANDATA
+        ctx->regMap[i].sizeActual = len;   // store actual length
+#endif
         ctx->regMap[i].flags |= LOLAN_REGMAP_REMOTE_UPDATE_BIT;  // set flag
       } else {   // type mismatch
         cerr = cbor_value_advance(it);   // advance CBOR iterator
@@ -1185,8 +1192,17 @@ int8_t lolanVarToCbor(lolan_ctx *ctx, const uint8_t *path, LR_SIZE_T index, Cbor
   }
 
   /* encode variable */
+#ifdef LOLAN_ALLOW_VARLEN_LOLANDATA
+  if ((ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK) == LOLAN_DATA) {    // LOLAN_DATA with variable length option
+    return lolanVarDataToCbor(ctx->regMap[i].data, ctx->regMap[i].sizeActual, LOLAN_DATA, encoder);
+  } else {   // other variable type
+    return lolanVarDataToCbor(ctx->regMap[i].data, ctx->regMap[i].size,
+                       ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK, encoder);
+  }
+#else
   return lolanVarDataToCbor(ctx->regMap[i].data, ctx->regMap[i].size,
                      ctx->regMap[i].flags & LOLAN_REGMAP_TYPE_MASK, encoder);
+#endif
   } /* lolanVarToCbor */
 
 /**************************************************************************//**
@@ -1224,7 +1240,7 @@ int8_t lolanVarToCbor(lolan_ctx *ctx, const uint8_t *path, LR_SIZE_T index, Cbor
  * @note
  *   FOR INTERNAL USE ONLY.
  ******************************************************************************/
-int8_t lolanVarToCborNestedPath(lolan_ctx *ctx, LR_SIZE_T index, CborEncoder *encoder,
+static int8_t lolanVarToCborNestedPath(lolan_ctx *ctx, LR_SIZE_T index, CborEncoder *encoder,
            lolanVarToCborNestedPath_aux action, bool statusCodeInstead)
 {
   static struct {
@@ -1241,7 +1257,7 @@ int8_t lolanVarToCborNestedPath(lolan_ctx *ctx, LR_SIZE_T index, CborEncoder *en
   switch (action) {
     case LVTCNPAUX_INITIAL:
       stv.nested_enc[0] = *encoder;   // save the initial CBOR encoder struct
-      defLvl = pathDefinitionLevel(ctx, path, NULL, false);  // get definition level for path
+      defLvl = lolanPathDefinitionLevel(ctx, path, NULL, false);  // get definition level for path
       if (defLvl == 0) return LOLAN_RETVAL_GENERROR;
       cerr = cbor_encode_uint(&stv.nested_enc[0], path[0]);   // encode the first path element as key
       if (cerr != CborNoError) return (cerr == CborErrorOutOfMemory) ? LOLAN_RETVAL_MEMERROR : LOLAN_RETVAL_CBORERROR;
@@ -1262,7 +1278,7 @@ int8_t lolanVarToCborNestedPath(lolan_ctx *ctx, LR_SIZE_T index, CborEncoder *en
       stv.last_defLvl = defLvl;   // store the definition level as last path's def. level
       break;
     case LVTCNPAUX_NORMAL:
-      defLvl = pathDefinitionLevel(ctx, path, NULL, false);  // get definition level for path
+      defLvl = lolanPathDefinitionLevel(ctx, path, NULL, false);  // get definition level for path
       if (defLvl == 0) return LOLAN_RETVAL_GENERROR;
       for (i = 0; i < stv.last_defLvl; i++) {   // compare the path to the previous
         if (path[i] != stv.last_path[i]) {   // mismatch
@@ -1362,13 +1378,13 @@ int8_t lolanVarBranchToCbor(lolan_ctx *ctx, const uint8_t *path, CborEncoder *en
   bool first;
   int8_t err;
 
-  defLvl = pathDefinitionLevel(ctx, path, NULL, false);  // get definition level for path
+  defLvl = lolanPathDefinitionLevel(ctx, path, NULL, false);  // get definition level for path
 
   first = true;
   for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
     if ((memcmp(ctx->regMap[i].p, path, defLvl) == 0)  // variable found for the specified subpath
          && (ctx->regMap[i].p[0] != 0)) {              // (not a free entry)
-      if (pathDefinitionLevel(ctx, ctx->regMap[i].p, NULL, false) > defLvl + LOLAN_REGMAP_RECURSION)  // maximum recursion level is exceeded
+      if (lolanPathDefinitionLevel(ctx, ctx->regMap[i].p, NULL, false) > defLvl + LOLAN_REGMAP_RECURSION)  // maximum recursion level is exceeded
         continue;
       if (first) {
         err = lolanVarToCborNestedPath(ctx, i, encoder, LVTCNPAUX_INITIAL, false);  // initializing CBOR tree and add the first item
@@ -1503,11 +1519,11 @@ int8_t lolanVarFlagToCbor(lolan_ctx *ctx, uint16_t flags, CborEncoder *encoder,
  * @return
  *   The CRC16 value.
  *****************************************************************************/
-uint16_t CRC_calc(const uint8_t *data, uint32_t size)
+uint16_t lolan_CRC_calc(const uint8_t *data, size_t size)
 {
   uint16_t crc, q;
   uint8_t c;
-  uint32_t i;
+  size_t i;
 
   crc = 0;
   for (i = 0; i < size; i++) {
@@ -1518,5 +1534,5 @@ uint16_t CRC_calc(const uint8_t *data, uint32_t size)
     crc = (crc >> 4) ^ (q * 0x1081);
   }
   return ((crc << 8) & 0xFF00) | ((crc >> 8) & 0x00FF);   // swap bytes
-} /* CRC_calc */
+} /* lolan_CRC_calc */
 
