@@ -132,7 +132,7 @@ int8_t lolan_processGet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply)
 
   DLOG(("\n LoLaN GET:  "));
 
-  if (pak->packetType != LOLAN_GET) {   // not a LoLaN GET packet
+  if (pak->packetType != LOLAN_PAK_GET) {   // not a LoLaN GET packet
     DLOG(("not a LoLaN GET packet"));
     return LOLAN_RETVAL_GENERROR;
   }
@@ -276,7 +276,7 @@ int8_t lolan_processGet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply)
 
   /* fill the reply packet structure */
   reply->packetCounter = pak->packetCounter;   // the packetCounter value for the reply should be the same as the request's
-  reply->packetType = ACK_PACKET;
+  reply->packetType = LOLAN_PAK_ACK;
   if (LOLAN_COPY_ROUTINGREQUEST_ON_ACK) reply->routingRequested = pak->routingRequested;
   reply->fromId = ctx->myAddress;   // from us
   reply->toId = pak->fromId;        // back to the sender of the request
@@ -342,7 +342,7 @@ int8_t lolan_createGet(lolan_ctx *ctx, lolan_Packet *pak, uint8_t *path)
   if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
 
   /* fill the LoLaN packet structure */
-  pak->packetType = LOLAN_GET;
+  pak->packetType = LOLAN_PAK_GET;
   pak->payloadSize = cbor_encoder_get_buffer_size(&enc, pak->payload);   // get the CBOR data size
   if (ctx != NULL) {  // if context is specified
     pak->fromId = ctx->myAddress;

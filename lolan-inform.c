@@ -314,11 +314,10 @@ int8_t lolan_createInform(lolan_ctx *ctx, lolan_Packet *pak, bool multi)
   if (retval == LOLAN_RETVAL_YES) {   // INFORM payload is created, fill other data
     /* fill the packet structure */
     pak->packetCounter = ctx->packetCounter++;   // the packet counter of the context is copied (and incremented)
-    pak->packetType = LOLAN_INFORM;
+    pak->packetType = LOLAN_PAK_INFORM;
     pak->fromId = ctx->myAddress;
     pak->toId = LOLAN_BROADCAST_ADDRESS;
     pak->ackRequired = false;
-    pak->packetRouted = false;
   }
   return retval;
 } /* lolan_createInform */
@@ -374,11 +373,10 @@ int8_t lolan_createInformEx(lolan_ctx *ctx, lolan_Packet *pak, bool multi,
   if (retval == LOLAN_RETVAL_YES && !payloadOnly) {   // INFORM payload is created, fill other data (if needed)
     /* fill the packet structure */
     pak->packetCounter = ctx->packetCounter++;   // the packet counter of the context is copied (and incremented)
-    pak->packetType = LOLAN_INFORM;
+    pak->packetType = LOLAN_PAK_INFORM;
     pak->fromId = ctx->myAddress;
     pak->toId = LOLAN_BROADCAST_ADDRESS;
     pak->ackRequired = false;
-    pak->packetRouted = false;
   }
   return retval;
 } /* lolan_createInformEx */

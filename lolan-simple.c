@@ -179,7 +179,7 @@ int8_t lolan_simpleCreateSet(lolan_ctx *ctx, lolan_Packet *pak, const uint8_t *p
   if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
 
   /* fill the LoLaN packet structure */
-  pak->packetType = LOLAN_SET;
+  pak->packetType = LOLAN_PAK_SET;
   pak->payloadSize = cbor_encoder_get_buffer_size(&enc, pak->payload);   // get the CBOR data size
   if (ctx != NULL) {  // if context is specified
     pak->fromId = ctx->myAddress;
@@ -246,7 +246,7 @@ int8_t lolan_simpleProcessAck(lolan_Packet *pak, uint8_t *data, LV_SIZE_T data_m
   uint16_t zerovalue;
 
   /* error checking */
-  if (pak->packetType != ACK_PACKET) return LOLAN_RETVAL_GENERROR;   // not an ACK packet
+  if (pak->packetType != LOLAN_PAK_ACK) return LOLAN_RETVAL_GENERROR;   // not an ACK packet
   if (data_max != 0 && data_max < 8) return LOLAN_RETVAL_GENERROR;  // (see description of data_max)
 
   /* determine reply type */
@@ -321,7 +321,7 @@ int8_t lolan_simpleExtractFromInform(lolan_Packet *pak, const uint8_t *path, uin
   bool isPath;
 
   /* error checking */
-  if (pak->packetType != LOLAN_INFORM) return LOLAN_RETVAL_GENERROR;   // not an INFORM packet
+  if (pak->packetType != LOLAN_PAK_INFORM) return LOLAN_RETVAL_GENERROR;   // not an INFORM packet
   if (data_max != 0 && data_max < 8) return LOLAN_RETVAL_GENERROR;  // (see description of data_max)
 
   /* get base path or code from zero key entry */

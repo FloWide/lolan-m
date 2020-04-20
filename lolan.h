@@ -77,31 +77,29 @@ typedef enum {
 } lolan_VarType;
 
 typedef enum {
-  BEACON_PACKET = 0,
-  DATA_PACKET = 1,
-  ACK_PACKET = 2,
-  MAC_PACKET = 3,
-  LOLAN_INFORM = 4,
-  LOLAN_GET = 5,
-  LOLAN_SET = 6,
-  LOLAN_CONTROL = 7
+  LOLAN_PAK_BEACON = 0,
+  LOLAN_PAK_DATA = 1,
+  LOLAN_PAK_ACK = 2,
+  LOLAN_PAK_MAC = 3,
+  LOLAN_PAK_INFORM = 4,
+  LOLAN_PAK_GET = 5,
+  LOLAN_PAK_SET = 6,
+  LOLAN_PAK_CONTROL = 7
 } lolan_PacketType;
 
 typedef enum {
-  TIMING_PACKET = 1,
-  RESEND_REQUEST_PACKET = 2,
-  CLKSYNC_PACKET = 3
+  LOLAN_CONTROL_RX_PACKET = 1,
+  LOLAN_CONTROL_CLKSYNC_PACKET = 2,
+  LOLAN_CONTROL_DEBUGMSG_PACKET = 16
 } lolan_ControlPacketType;
 
 // LoLaN packet
 typedef struct {
   lolan_PacketType packetType;
   bool securityEnabled;
-  bool framePending;
   bool ackRequired;
   uint8_t packetCounter;
   bool routingRequested;
-  bool packetRouted;
   uint16_t fromId;
   uint16_t toId;
   uint8_t *payload;

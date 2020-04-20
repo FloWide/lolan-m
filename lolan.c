@@ -512,11 +512,9 @@ int8_t lolan_createPacket(const lolan_Packet *lp, uint8_t *buf,
   /* construct the packet header */
   buf[0] = lp->packetType;
   if (lp->securityEnabled)    buf[0] |= 0x08;
-  if (lp->framePending)       buf[0] |= 0x10;
   if (lp->ackRequired)        buf[0] |= 0x20;
   buf[1] = 0x74;    // IEEE 802.15.4 protocol version = 3
   if (lp->routingRequested)   buf[1] |= 0x80;
-  if (lp->packetRouted)       buf[1] |= 0x08;
 
   buf[2] = lp->packetCounter;
 
@@ -570,15 +568,8 @@ int8_t lolan_parsePacket(const uint8_t *pak, size_t pak_len, lolan_Packet *lp)
 
   /* parsing packet */
   lp->routingRequested = (pak[1] & 0x80) ? true : false;
-  lp->packetRouted     = (pak[1] & 0x08) ? true : false;
   lp->packetType = pak[0] & 0x07;
-  if (!((lp->packetType == ACK_PACKET) || (lp->packetType == LOLAN_INFORM)   // check type
-      || (lp->packetType == LOLAN_GET) || (lp->packetType == LOLAN_SET)
-      || (lp->packetType == LOLAN_CONTROL))) {
-    return LOLAN_RETVAL_NO;   // invalid type (not a LoLaN packet?)
-  }
   lp->securityEnabled = (pak[0] & 0x08) ? true : false;
-  lp->framePending    = (pak[0] & 0x10) ? true : false;   //TODO: implement extended frames
   lp->ackRequired     = (pak[0] & 0x20) ? true : false;
   lp->packetCounter   = pak[2];
   lp->fromId          = pak[3] | (pak[4] << 8);

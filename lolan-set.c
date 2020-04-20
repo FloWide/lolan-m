@@ -197,7 +197,7 @@ int8_t lolan_processSet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply)
 
   DLOG(("\n LoLaN SET:  "));
 
-  if (pak->packetType != LOLAN_SET) {   // not a LoLaN SET packet
+  if (pak->packetType != LOLAN_PAK_SET) {   // not a LoLaN SET packet
     DLOG(("not a LoLaN SET packet"));
     return LOLAN_RETVAL_GENERROR;
   }
@@ -446,7 +446,7 @@ int8_t lolan_processSet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply)
   }
 
   reply->packetCounter = pak->packetCounter;
-  reply->packetType = ACK_PACKET;
+  reply->packetType = LOLAN_PAK_ACK;
   if (LOLAN_COPY_ROUTINGREQUEST_ON_ACK) reply->routingRequested = pak->routingRequested;
   reply->fromId = ctx->myAddress;
   reply->toId = pak->fromId;
