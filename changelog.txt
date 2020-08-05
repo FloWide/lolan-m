@@ -29,3 +29,6 @@ What's new in version?
 ¤ LP_SIZE_T type to internally represent packet & payload size
 ¤ packet type enum was updated
 ¤ control packet types enum was updated
+
+105:
+¤ header "attributes" part changes including multi-part control bits (backward compatible changes)

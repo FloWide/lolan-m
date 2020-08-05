@@ -511,9 +511,10 @@ int8_t lolan_createPacket(const lolan_Packet *lp, uint8_t *buf,
 
   /* construct the packet header */
   buf[0] = lp->packetType;
-  if (lp->securityEnabled)    buf[0] |= 0x08;
+  buf[0] |= lp->multiPart << 3;
   if (lp->ackRequired)        buf[0] |= 0x20;
   buf[1] = 0x74;    // IEEE 802.15.4 protocol version = 3
+  if (lp->securityEnabled)    buf[1] |= 0x08;
   if (lp->routingRequested)   buf[1] |= 0x80;
 
   buf[2] = lp->packetCounter;
@@ -567,10 +568,11 @@ int8_t lolan_parsePacket(const uint8_t *pak, size_t pak_len, lolan_Packet *lp)
     return LOLAN_RETVAL_NO;
 
   /* parsing packet */
-  lp->routingRequested = (pak[1] & 0x80) ? true : false;
   lp->packetType = pak[0] & 0x07;
-  lp->securityEnabled = (pak[0] & 0x08) ? true : false;
+  lp->multiPart = (pak[0] >> 3) & 0x03;
   lp->ackRequired     = (pak[0] & 0x20) ? true : false;
+  lp->securityEnabled = (pak[1] & 0x08) ? true : false;
+  lp->routingRequested = (pak[1] & 0x80) ? true : false;
   lp->packetCounter   = pak[2];
   lp->fromId          = pak[3] | (pak[4] << 8);
   lp->toId            = pak[5] | (pak[6] << 8);

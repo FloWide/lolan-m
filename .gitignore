@@ -1,6 +1,0 @@
-*.o
-*.a
-*.so
-tests/lolan-server
-tests/lolan-client
-lolan_config.h

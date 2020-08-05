@@ -12,7 +12,7 @@
 #include "lolan_config.h"
 
 
-#define LOLAN_VERSION      104    // LoLaN version number
+#define LOLAN_VERSION      105    // LoLaN version number
 
 
 /* common defines */
@@ -88,6 +88,13 @@ typedef enum {
 } lolan_PacketType;
 
 typedef enum {
+  LOLAN_MPC_NOMULTIPART = 0,
+  LOLAN_MPC_MULTIPART_START = 1,
+  LOLAN_MPC_MULTIPART_MIDDLE = 2,
+  LOLAN_MPC_MULTIPART_END = 3
+} lolan_MultiPart;
+
+typedef enum {
   LOLAN_CONTROL_RX_PACKET = 1,
   LOLAN_CONTROL_CLKSYNC_PACKET = 2,
   LOLAN_CONTROL_DEBUGMSG_PACKET = 16
@@ -96,6 +103,7 @@ typedef enum {
 // LoLaN packet
 typedef struct {
   lolan_PacketType packetType;
+  lolan_MultiPart multiPart;
   bool securityEnabled;
   bool ackRequired;
   uint8_t packetCounter;
