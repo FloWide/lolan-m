@@ -277,6 +277,7 @@ int8_t lolan_processGet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply)
   /* fill the reply packet structure */
   reply->packetCounter = pak->packetCounter;   // the packetCounter value for the reply should be the same as the request's
   reply->packetType = LOLAN_PAK_ACK;
+  reply->multiPart = LOLAN_MPC_NOMULTIPART;
   if (LOLAN_COPY_ROUTINGREQUEST_ON_ACK) reply->routingRequested = pak->routingRequested;
   reply->fromId = ctx->myAddress;   // from us
   reply->toId = pak->fromId;        // back to the sender of the request
@@ -343,6 +344,7 @@ int8_t lolan_createGet(lolan_ctx *ctx, lolan_Packet *pak, uint8_t *path)
 
   /* fill the LoLaN packet structure */
   pak->packetType = LOLAN_PAK_GET;
+  pak->multiPart = LOLAN_MPC_NOMULTIPART;
   pak->payloadSize = cbor_encoder_get_buffer_size(&enc, pak->payload);   // get the CBOR data size
   if (ctx != NULL) {  // if context is specified
     pak->fromId = ctx->myAddress;

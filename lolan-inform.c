@@ -315,6 +315,7 @@ int8_t lolan_createInform(lolan_ctx *ctx, lolan_Packet *pak, bool multi)
     /* fill the packet structure */
     pak->packetCounter = ctx->packetCounter++;   // the packet counter of the context is copied (and incremented)
     pak->packetType = LOLAN_PAK_INFORM;
+    pak->multiPart = LOLAN_MPC_NOMULTIPART;
     pak->fromId = ctx->myAddress;
     pak->toId = LOLAN_BROADCAST_ADDRESS;
     pak->ackRequired = false;
@@ -374,12 +375,10 @@ int8_t lolan_createInformEx(lolan_ctx *ctx, lolan_Packet *pak, bool multi,
     /* fill the packet structure */
     pak->packetCounter = ctx->packetCounter++;   // the packet counter of the context is copied (and incremented)
     pak->packetType = LOLAN_PAK_INFORM;
+    pak->multiPart = LOLAN_MPC_NOMULTIPART;
     pak->fromId = ctx->myAddress;
     pak->toId = LOLAN_BROADCAST_ADDRESS;
     pak->ackRequired = false;
   }
   return retval;
 } /* lolan_createInformEx */
-
-
-// TODO: lolan_processInform()

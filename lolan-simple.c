@@ -180,6 +180,7 @@ int8_t lolan_simpleCreateSet(lolan_ctx *ctx, lolan_Packet *pak, const uint8_t *p
 
   /* fill the LoLaN packet structure */
   pak->packetType = LOLAN_PAK_SET;
+  pak->multiPart = LOLAN_MPC_NOMULTIPART;
   pak->payloadSize = cbor_encoder_get_buffer_size(&enc, pak->payload);   // get the CBOR data size
   if (ctx != NULL) {  // if context is specified
     pak->fromId = ctx->myAddress;
