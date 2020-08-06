@@ -306,12 +306,12 @@ uint16_t lolan_getFlag(lolan_ctx *ctx, const void *ptr)
 
 /**************************************************************************//**
  * @brief
- *   Clear flags of a LoLaN variable.
+ *   Clear flags of a LoLaN variable, or for all LoLaN variables.
  * @param[in] ctx
  *   Pointer to the LoLaN context variable.
  * @param[in] ptr
  *   Address of the variable data (the LoLaN variable will be identified
- *   by this information).
+ *   by this information), or NULL to clear flags for all variables.
  * @param[in] flags
  *   The flags to be cleared.
  * @return
@@ -323,16 +323,24 @@ int8_t lolan_clearFlag(lolan_ctx *ctx, const void *ptr, uint16_t flags)
 {
   LR_SIZE_T i;
 
-  for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
-    if (ctx->regMap[i].p[0] != 0) {    // (skip free entries)
-      if (ctx->regMap[i].data == ptr) {    // variable is found by data pointer
-        ctx->regMap[i].flags &= ~(flags & LOLAN_REGMAP_USER_MASK);   // clear flags (only user flags can be modified)
-        return LOLAN_RETVAL_YES;
+  if (ptr != NULL) {   // variable pointer is specified
+    for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
+      if (ctx->regMap[i].p[0] != 0) {    // (skip free entries)
+        if (ctx->regMap[i].data == ptr) {    // variable is found by data pointer
+          ctx->regMap[i].flags &= ~(flags & LOLAN_REGMAP_USER_MASK);   // clear flags (only user flags can be modified)
+          return LOLAN_RETVAL_YES;
+        }
       }
     }
+    /* no variable mapped to the specified address was found */
+    return LOLAN_RETVAL_GENERROR;
+  } else {   // clear flags for all
+    for (i = 0; i < LOLAN_REGMAP_SIZE; i++) {
+      if (ctx->regMap[i].p[0] != 0)    // (skip free entries)
+        ctx->regMap[i].flags &= ~(flags & LOLAN_REGMAP_USER_MASK);   // clear flags (only user flags can be modified)
+    }
+    return LOLAN_RETVAL_YES;
   }
-  /* no variable mapped to the specified address was found */
-  return LOLAN_RETVAL_GENERROR;
 } /* lolan_clearFlag */
 
 #ifdef LOLAN_VARIABLE_TAG_TYPE

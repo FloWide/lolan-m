@@ -32,3 +32,4 @@ What's new in version?
 
 105:
 ¤ header "attributes" part changes including multi-part control bits (backward compatible changes)
+¤ lolan_clearFlag can now clear flags for all variables in a single call 
