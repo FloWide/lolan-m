@@ -34,3 +34,6 @@ What's new in version?
 ¤ header "attributes" part changes including multi-part control bits (backward compatible changes)
 ¤ lolan_clearFlag can now clear flags for all variables in a single call
 ¤ removed #pragma GCC optimize("-ffunction-sections") from compilersupport_p.h (generated lots of warnings)
+
+106:
+¤ new LoLaN CONTROL packet subtype: LOLAN_CONTROL_BEACON_PACKET (3)
