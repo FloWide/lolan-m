@@ -37,3 +37,6 @@ What's new in version?
 
 106:
 ¤ new LoLaN CONTROL packet subtype: LOLAN_CONTROL_BEACON_PACKET (3)
+
+107:
+¤ new LoLaN CONTROL packet subtype: LOLAN_CONTROL_TWR_PACKET (4)

@@ -12,7 +12,7 @@
 #include "lolan_config.h"
 
 
-#define LOLAN_VERSION      106    // LoLaN version number
+#define LOLAN_VERSION      107    // LoLaN version number
 
 
 /* common defines */
@@ -98,6 +98,7 @@ typedef enum {
   LOLAN_CONTROL_RX_PACKET = 1,
   LOLAN_CONTROL_CLKSYNC_PACKET = 2,
   LOLAN_CONTROL_BEACON_PACKET = 3,
+  LOLAN_CONTROL_TWR_PACKET = 4,
   LOLAN_CONTROL_DEBUGMSG_PACKET = 16
 } lolan_ControlPacketType;
 
