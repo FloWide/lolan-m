@@ -146,7 +146,12 @@ static inline int8_t lolan_createInform_internal(lolan_ctx *ctx, uint8_t *payloa
       return LOLAN_RETVAL_CBORERROR;
     }
     if (multi) {  // if multiple variable reporting is allowed
+      if (map_enc.end > map_enc.data.ptr)  // CBOR implementation hack:
+        map_enc.end--;    //   reduce CBOR buffer size setting by 1 before calling lolanVarFlagToCbor()
+                          //   Size of indefinite length container terminator (BreakByte) is 1,
+                          //   need to leave room for it when lolanVarFlagToCbor() fills up the buffer with LoLaN variable reports.
       err = lolanVarFlagToCbor(ctx, flags, &map_enc, true, false);   // encode the variables
+      map_enc.end++;    // CBOR implementation hack: restore buffer size setting
       if (err != LOLAN_RETVAL_YES) {
         DLOG(("\n CBOR encode error"));
         return err;
