@@ -481,6 +481,23 @@ LV_SIZE_T lolan_getDataActualLength(lolan_ctx *ctx, const void *ptr)
 
 /**************************************************************************//**
  * @brief
+ *   Reset a LoLaN packet structure.
+ * @details
+ *   This procedure resets all option fields of a LoLaN packet structure
+ *   to its default value.
+ * @param[in] lp
+ *   Pointer to the LoLaN packet structure to reset.
+ *****************************************************************************/
+void lolan_resetPacket(lolan_Packet *lp)
+{
+  lp->multiPart = LOLAN_MPC_NOMULTIPART;
+  lp->securityEnabled = false;
+  lp->ackRequired = false;
+  lp->routingRequested = false;
+} /* lolan_resetPacket */
+
+/**************************************************************************//**
+ * @brief
  *   Output the binary representation of a LoLaN packet to the specified
  *   buffer.
  * @param[in] lp
@@ -559,7 +576,7 @@ int8_t lolan_createPacket(const lolan_Packet *lp, uint8_t *buf,
  * @param[in] pak_len
  *   Length of the input data (packet) in bytes.
  * @param[out] lp
- *   pointer to lolan Packet structure
+ *   Pointer to a LoLaN packet structure which will receive data.
  * @return
  *   LOLAN_RETVAL_YES:       LoLaN packet found, everything went o.k.
  *   LOLAN_RETVAL_NO:        Not a LoLaN packet.

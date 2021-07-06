@@ -275,9 +275,9 @@ int8_t lolan_processGet(lolan_ctx *ctx, lolan_Packet *pak, lolan_Packet *reply)
   }
 
   /* fill the reply packet structure */
+  lolan_resetPacket(reply);   // reset options
   reply->packetCounter = pak->packetCounter;   // the packetCounter value for the reply should be the same as the request's
   reply->packetType = LOLAN_PAK_ACK;
-  reply->multiPart = LOLAN_MPC_NOMULTIPART;
   if (LOLAN_COPY_ROUTINGREQUEST_ON_ACK) reply->routingRequested = pak->routingRequested;
   reply->fromId = ctx->myAddress;   // from us
   reply->toId = pak->fromId;        // back to the sender of the request

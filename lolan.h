@@ -162,6 +162,7 @@ extern int8_t lolan_setDataActualLength(lolan_ctx *ctx, const void *ptr, LV_SIZE
 extern LV_SIZE_T lolan_getDataActualLength(lolan_ctx *ctx, const void *ptr);
 #endif
 
+extern void lolan_resetPacket(lolan_Packet *lp);
 extern int8_t lolan_createPacket(const lolan_Packet *lp, uint8_t *buf, size_t maxSize,
                 size_t *outputSize, bool withCRC);
 extern int8_t lolan_parsePacket(const uint8_t *pak, size_t pak_len, lolan_Packet *lp);

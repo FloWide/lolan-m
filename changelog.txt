@@ -42,4 +42,7 @@ What's new in version?
 ¤ new LoLaN CONTROL packet subtype: LOLAN_CONTROL_TWR_PACKET (4)
 
 108:
-¤ bugfix: improved multi-inform (introduced in v103) fail   
+¤ bugfix: improved multi-inform (introduced in v103) fail
+
+109:
+¤ lolan_resetPacket function
