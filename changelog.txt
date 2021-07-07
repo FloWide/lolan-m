@@ -45,4 +45,5 @@ What's new in version?
 ¤ bugfix: improved multi-inform (introduced in v103) fail
 
 109:
-¤ lolan_resetPacket function
+¤ lolan_resetPacket() function
+¤ header parsing from lolan_parsePacket moved to a separate lolan_parsePacketHeader() function

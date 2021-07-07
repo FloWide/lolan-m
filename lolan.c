@@ -566,6 +566,30 @@ int8_t lolan_createPacket(const lolan_Packet *lp, uint8_t *buf,
 
 /**************************************************************************//**
  * @brief
+ *   Parse a packet header (binary representation), and fill a LoLaN
+ *   packet structure from it.
+ * @note
+ *   No error check, payload is not extracted, CRC is not checked.
+ *   For internal use and special cases only.
+ * @param[in] pak
+ *   The starting address of the input data (packet).
+ * @param[out] lp
+ *   Pointer to a LoLaN packet structure which will receive data.
+ *****************************************************************************/
+void lolan_parsePacketHeader(const uint8_t *pak, lolan_Packet *lp)
+{
+  lp->packetType        = pak[0] & 0x07;
+  lp->multiPart         = (pak[0] >> 3) & 0x03;
+  lp->ackRequired       = (pak[0] & 0x20) ? true : false;
+  lp->securityEnabled   = (pak[1] & 0x08) ? true : false;
+  lp->routingRequested  = (pak[1] & 0x80) ? true : false;
+  lp->packetCounter     = pak[2];
+  lp->fromId            = pak[3] | (pak[4] << 8);
+  lp->toId              = pak[5] | (pak[6] << 8);
+} /* lolan_parsePacketHeader */
+
+/**************************************************************************//**
+ * @brief
  *   Parse a packet (binary representation), and fill a LoLaN packet
  *   structure from it (if LoLaN).
  * @note
@@ -592,15 +616,10 @@ int8_t lolan_parsePacket(const uint8_t *pak, size_t pak_len, lolan_Packet *lp)
   if (((pak[1] >> 4) & 0x03) != 3)   // checking 802.15.4 FRAME version
     return LOLAN_RETVAL_NO;
 
-  /* parsing packet */
-  lp->packetType = pak[0] & 0x07;
-  lp->multiPart = (pak[0] >> 3) & 0x03;
-  lp->ackRequired     = (pak[0] & 0x20) ? true : false;
-  lp->securityEnabled = (pak[1] & 0x08) ? true : false;
-  lp->routingRequested = (pak[1] & 0x80) ? true : false;
-  lp->packetCounter   = pak[2];
-  lp->fromId          = pak[3] | (pak[4] << 8);
-  lp->toId            = pak[5] | (pak[6] << 8);
+  /* extract header */
+  lolan_parsePacketHeader(pak, lp);
+
+  /* check CRC and extract payload */
   if (lp->securityEnabled) {
     /* TODO: implement security */
   } else {
@@ -619,4 +638,3 @@ int8_t lolan_parsePacket(const uint8_t *pak, size_t pak_len, lolan_Packet *lp)
 
   return LOLAN_RETVAL_YES;   // done
 } /* lolan_parsePacket */
-
