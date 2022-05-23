@@ -47,3 +47,7 @@ What's new in version?
 109:
 ¤ lolan_resetPacket() function
 ¤ header parsing from lolan_parsePacket moved to a separate lolan_parsePacketHeader() function
+
+110:
+¤ packet type checking was removed from lolan_simpleExtractFromInform() function
+¤ new function: lolan_simpleProcessInform() to process all data in an INFORM efficiently

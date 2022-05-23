@@ -12,7 +12,7 @@
 #include "lolan_config.h"
 
 
-#define LOLAN_VERSION      109    // LoLaN version number
+#define LOLAN_VERSION      110    // LoLaN version number
 
 
 /* common defines */
@@ -138,7 +138,29 @@ typedef struct {
 //  uint8_t nodeIV[16];
 } lolan_ctx;
 
-typedef void (*lpuCallback)(void*);   // callback function type pointer definition for lolan_processUpdated
+
+/**************************************************************************//**
+ * @brief
+ *   Callback function type for lolan_processUpdated().
+ * @param
+ *   Pointer to the variable data.
+ *****************************************************************************/
+typedef void (*lpuCallback)(void*);
+
+/**************************************************************************//**
+ * @brief
+ *   Callback function type for lolan_simpleProcessInform().
+ * @param[in] path
+ *   Variable path array (length: LOLAN_REGMAP_DEPTH).
+ * @param[in] data
+ *   Pointer to the buffer which contains the data.
+ *   (Points to the same buffer supplied for lolan_simpleProcessInform() ).
+ * @param[in] dataLen
+ *   Length of the data in the buffer.
+ * @param[in] dataType
+ *   Type of the data in the buffer.
+ *****************************************************************************/
+typedef void (*lspiCallback)(uint8_t *path, uint8_t *data, LV_SIZE_T dataLen, lolan_VarType dataType);
 
 
 extern void lolan_init(lolan_ctx *ctx, uint16_t initial_address);
@@ -182,5 +204,7 @@ extern int8_t lolan_simpleProcessAck(lolan_Packet *pak, uint8_t *data, LV_SIZE_T
                 LV_SIZE_T *data_len, uint8_t *type, bool *zerokey);
 extern int8_t lolan_simpleExtractFromInform(lolan_Packet *pak, const uint8_t *path, uint8_t *data,
                 LV_SIZE_T data_max, LV_SIZE_T *data_len, uint8_t *type);
+extern int8_t lolan_simpleProcessInform(lolan_Packet *pak, uint8_t *buffer, LV_SIZE_T bufSize,
+                lspiCallback callback);
 
 #endif /* LOLAN_H_ */

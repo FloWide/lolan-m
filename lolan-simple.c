@@ -5,6 +5,7 @@
  ******************************************************************************/
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "lolan_config.h"
 #include "lolan.h"
@@ -322,7 +323,6 @@ int8_t lolan_simpleExtractFromInform(lolan_Packet *pak, const uint8_t *path, uin
   bool isPath;
 
   /* error checking */
-  if (pak->packetType != LOLAN_PAK_INFORM) return LOLAN_RETVAL_GENERROR;   // not an INFORM packet
   if (data_max != 0 && data_max < 8) return LOLAN_RETVAL_GENERROR;  // (see description of data_max)
 
   /* get base path or code from zero key entry */
@@ -361,3 +361,138 @@ int8_t lolan_simpleExtractFromInform(lolan_Packet *pak, const uint8_t *path, uin
   return lolan_seekAndGet(pak, xpath, data, data_max, data_len, type);
 } /* lolan_simpleExtractFromInform */
 
+/**************************************************************************//**
+ * @brief
+ *   Extract all data from a LoLaN INFORM packet payload.
+ * @details
+ *   This procedure processes the whole INFORM packet, and returns every
+ *   single entry through the callback function. Zero key entry and
+ *   incidental entries with >255 keys will not be returned.
+ * @note
+ *   The source of the INFORM should be configured with
+ *   the same parameters as the local settings (LOLAN_REGMAP_DEPTH,
+ *   LOLAN_MAX_PACKET_SIZE).
+ * @param[in] pak
+ *   Pointer to the LoLaN packet structure which contains the INFORM packet
+ *   to be processed.
+ * @param[out] buffer
+ *   Address of the buffer which will receive the data.
+ * @param[in] bufSize
+ *   The maximum allowable data length (to avoid buffer overflow). Set this
+ *   parameter to 0 if no limitation is required. Otherwise, it must be >=8
+ *   (not to break integer and floating-point data).
+ * @param[in] callback
+ *   Pointer to the callback function which will be called for every
+ *   single entry found.
+ * @return
+ *   LOLAN_RETVAL_YES: All data extracted.
+ *   LOLAN_RETVAL_NO: No data in payload.
+ *   LOLAN_RETVAL_GENERROR: An error has occurred (e.g. invalid INFORM packet).
+ *   LOLAN_RETVAL_CBORERROR: A CBOR-related error has occurred.
+ *****************************************************************************/
+int8_t lolan_simpleProcessInform(lolan_Packet *pak, uint8_t *buffer, LV_SIZE_T bufSize, lspiCallback callback)
+{
+  int8_t err;
+  uint8_t basePath[LOLAN_REGMAP_DEPTH], path[LOLAN_REGMAP_DEPTH], cPath[LOLAN_REGMAP_DEPTH];
+  uint16_t zeroValue;
+  bool zeroIsPath;
+  bool foundSomething;
+
+  uint8_t i, alevel;
+  int key;
+
+  CborParser parser;
+  CborValue root_it, it[LOLAN_REGMAP_DEPTH];
+  CborError cerr;
+
+  /* error checking */
+  if (bufSize != 0 && bufSize < 8) return LOLAN_RETVAL_GENERROR;  // (see description of data_max)
+
+  /* get base path or code from zero key entry */
+  err = lolanGetZeroKeyEntryFromPayload(pak, basePath, &zeroValue, &zeroIsPath);
+  switch (err) {
+    case LOLAN_RETVAL_YES:   // zero key entry found
+      if (!zeroIsPath)    // new style INFORM, check number at zero key
+        if (zeroValue != 299) return LOLAN_RETVAL_GENERROR;   // the zero key should contain the status code 299
+      break;
+    case LOLAN_RETVAL_NO:   // no zero key entry
+      /* legacy style INFORM, the base path is the root */
+      memset(basePath, 0, LOLAN_REGMAP_DEPTH);
+      zeroIsPath = true;
+      break;
+    default:   // error
+      return err;
+      break;
+  }
+
+  /* initialize and enter the root container (map) */
+  cerr = cbor_parser_init(pak->payload, pak->payloadSize, 0, &parser, &root_it);  // initialize CBOR parser
+  if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+  if (cbor_value_get_type(&root_it) != CborMapType) return LOLAN_RETVAL_GENERROR;   // the root entry must be a CBOR map
+  cerr = cbor_value_enter_container(&root_it, &it[0]);   // enter root map
+  if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+
+  /* process the nested CBOR structure */
+  foundSomething = false;
+  alevel = 0;  // address level is 0 at this point
+  while (!((alevel == 0) && cbor_value_at_end(&it[alevel]))) {   // until entries are available in the root map level
+    /* check for end of container */
+    if (cbor_value_at_end(&it[alevel])) {   // end of map (alevel is always >0 at this point)
+      cerr = cbor_value_leave_container(&it[alevel-1], &it[alevel]);   // leave container
+      alevel--;  // decrement current address level
+      if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+      continue;
+    }
+    /* extract key */
+    if (cbor_value_get_type(&it[alevel]) != CborIntegerType) return LOLAN_RETVAL_GENERROR;  // check key of a key-data pair (must be integer)
+    cbor_value_get_int(&it[alevel], &key);   // get key
+    cerr = cbor_value_advance_fixed(&it[alevel]);   // advance iterator to data
+    if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+    if (cbor_value_at_end(&it[alevel])) return LOLAN_RETVAL_GENERROR;   // unexpected end of map (no data for key)
+    /* process key-data pair */
+    if ((key <= 0) || (key > 255)) {   // zero key found, or key can not be a path element
+      /* advance to the next key */
+      cerr = cbor_value_advance(&it[alevel]);
+      if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+    } else {   // other key found
+      path[alevel] = key;  // store path element
+      if (cbor_value_get_type(&it[alevel]) == CborMapType) {  // the data is a map -> subpath branch
+        if (alevel < LOLAN_REGMAP_DEPTH-1) {  // entering a lower path level is o.k.
+          cerr = cbor_value_enter_container(&it[alevel], &it[alevel+1]);   // enter map
+          if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+          alevel++;  // increment current address level
+        } else {  // can not enter a lower path, skip this sub-branch
+          cerr = cbor_value_advance(&it[alevel]);   // skip map
+          if (cerr != CborNoError) return LOLAN_RETVAL_CBORERROR;
+        }
+      } else {  // the data is not a map (may be valid data)
+        uint8_t defLvl, type;
+        LV_SIZE_T dataLen;
+
+        foundSomething = true;
+        /* assemble path */
+        if (zeroIsPath) {   // legacy style INFORM, need to combine base with path
+          defLvl = lolanPathDefinitionLevel(NULL, basePath, NULL, false);   // get base path definition level
+          memcpy(cPath, basePath, defLvl);   // copy base part
+          memcpy(cPath + defLvl, path, LOLAN_REGMAP_DEPTH - defLvl);   // copy others
+          for (i = defLvl+alevel+1; i < LOLAN_REGMAP_DEPTH; i++)   // correct path with zeros if needed
+            cPath[i] = 0;
+        } else {   // new style INFORM, just copy path
+          memcpy(cPath, path, LOLAN_REGMAP_DEPTH);
+          for (i = alevel+1; i < LOLAN_REGMAP_DEPTH; i++)   // correct path with zeros if needed
+            cPath[i] = 0;
+        }
+        /* obtain data and pass it to the callback */
+        err = lolanGetDataFromCbor(&it[alevel], buffer, bufSize, &dataLen, &type);    // get data
+        if (err != LOLAN_RETVAL_YES) return err;   // error check
+        callback(cPath, buffer, dataLen, type);   // call handler
+      }
+    }
+  }
+
+  /* return */
+  if (foundSomething)   // not an empty INFORM
+    return LOLAN_RETVAL_YES;
+  else   // it was an empty INFORM
+    return LOLAN_RETVAL_NO;
+} /* lolan_simpleProcessInform */
