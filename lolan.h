@@ -12,7 +12,7 @@
 #include "lolan_config.h"
 
 
-#define LOLAN_VERSION      110    // LoLaN version number
+#define LOLAN_VERSION      111    // LoLaN version number
 
 
 /* common defines */

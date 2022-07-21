@@ -608,6 +608,8 @@ void lolan_parsePacketHeader(const uint8_t *pak, lolan_Packet *lp)
  *****************************************************************************/
 int8_t lolan_parsePacket(const uint8_t *pak, size_t pak_len, lolan_Packet *lp)
 {
+  uint16_t crc16;
+
   /* error check */
   if (pak_len < 9)  // packet is too short
     return LOLAN_RETVAL_NO;
@@ -620,18 +622,14 @@ int8_t lolan_parsePacket(const uint8_t *pak, size_t pak_len, lolan_Packet *lp)
   lolan_parsePacketHeader(pak, lp);
 
   /* check CRC and extract payload */
-  if (lp->securityEnabled) {
-    /* TODO: implement security */
-  } else {
-    uint16_t crc16 = lolan_CRC_calc(pak, pak_len);
-    if (crc16 != 0) {
-      DLOG(("\n lolan_parsePacket(): CRC error"));
-      DLOG(("\n CRC16: %04x", crc16));
-      return LOLAN_RETVAL_GENERROR;
-    }
-    lp->payloadSize = pak_len - 9;
-    memcpy(lp->payload, &(pak[7]), lp->payloadSize);
+  crc16 = lolan_CRC_calc(pak, pak_len);
+  if (crc16 != 0) {
+    DLOG(("\n lolan_parsePacket(): CRC error"));
+    DLOG(("\n CRC16: %04x", crc16));
+    return LOLAN_RETVAL_GENERROR;
   }
+  lp->payloadSize = pak_len - 9;
+  memcpy(lp->payload, &(pak[7]), lp->payloadSize);
 
   DLOG(("\n LoLaN packet t:%d s:%d ps:%d from:%d to:%d enc:%d", lp->packetType, pak_len,
         lp->payloadSize, lp->fromId, lp->toId, lp->securityEnabled));

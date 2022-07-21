@@ -51,3 +51,6 @@ What's new in version?
 110:
 ¤ packet type checking was removed from lolan_simpleExtractFromInform() function
 ¤ new function: lolan_simpleProcessInform() to process all data in an INFORM efficiently
+
+111:
+¤ BUGFIX: was no CRC check in lolan_parsePacket() if securityEnabled bit is set 
